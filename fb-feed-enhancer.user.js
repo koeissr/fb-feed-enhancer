@@ -1,11 +1,16 @@
 // ==UserScript==
 // @name         FB Feed Enhancer
+// @name:en      FB Feed Enhancer
 // @name:zh-TW   FB 動態牆增強器
+// @name:zh-CN   FB 动态墙增强器
 // @namespace    https://github.com/koeissr/fb-feed-enhancer
-// @version      1.0.0
-// @description:zh-TW  多欄化樣式（含防回捲空白修復）、防切分頁自動重新整理、預設切換所有留言、安全版自動展開留言（僅限燈箱與單一貼文頁）、自動隱藏廣告與推薦貼文、音量與版面控制。改編自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
+// @version      1.0.1
 // @description  Multi-column layout with virtualization scroll fix, prevent auto-refresh on tab switch, default to All Comments, safe comment auto-expand (dialog/single-post only), ad & suggested post auto-hide, volume and layout controls. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
+// @description:en     Multi-column layout with virtualization scroll fix, prevent auto-refresh on tab switch, default to All Comments, safe comment auto-expand (dialog/single-post only), ad & suggested post auto-hide, volume and layout controls. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
+// @description:zh-TW  多欄化樣式（含防回捲空白修復）、防切分頁自動重新整理、預設切換所有留言、安全版自動展開留言（僅限燈箱與單一貼文頁）、自動隱藏廣告與推薦貼文、音量與版面控制。改編自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
+// @description:zh-CN  多栏化样式（含防回滚空白修复）、防切标签页自动刷新、默认切换全部评论、安全版自动展开评论（仅限弹窗与单贴页面）、自动隐藏广告与推荐帖子、音量与版面控制。改编自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
 // @author       koeissr (based on Dxzy)
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=facebook.com
 // @match        https://www.facebook.com/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -879,8 +884,8 @@
   const commentExpandCount = new WeakMap();
   const COMMENT_EXPAND_MAX = 3;
   const switchedCommentScopes = new WeakSet();
-  const COMMENT_SORT_TRIGGER_RE = /^(最相關|最相關留言|熱門留言|Most relevant|Top comments)$/i;
-  const ALL_COMMENTS_OPTION_RE = /^(所有留言|All comments)$/i;
+  const COMMENT_SORT_TRIGGER_RE = /^(最相關|最相關留言|熱門留言|最相关|最相关评论|热门评论|Most relevant|Most relevant comments|Top comments)$/i;
+  const ALL_COMMENTS_OPTION_RE = /^(所有留言|全部留言|全部评论|所有评论|All comments)$/i;
   let allCommentsLastAt = -1e9;
   let preventRefreshBound = false;
   function isHomeFeedPath() {

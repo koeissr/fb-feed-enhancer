@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.1 (2026-11-20)
+
+### Added
+- 完整支援中英文（繁中／簡中／英文）語系標頭（`@name:en`、`@name:zh-TW`、`@name:zh-CN`、`@description:*`）與雙語 `README.md`。
+- 擴充預設「所有留言」比對規則，完整相容英文版（`Most relevant` / `Most relevant comments` / `Top comments` $\rightarrow$ `All comments`）與繁簡中文版 Facebook 介面。
+- 新增腳本前置圖示（`@icon`），於 Tampermonkey 控制台清單顯示 Facebook 圖示。
+
 ## v1.0.0 (2026-11-20)
 
 ### Added
