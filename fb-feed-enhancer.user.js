@@ -4,7 +4,7 @@
 // @name:zh-TW   FB 動態牆增強器
 // @name:zh-CN   FB 动态墙增强器
 // @namespace    https://github.com/koeissr/fb-feed-enhancer
-// @version      1.0.1
+// @version      1.0.2
 // @description  Multi-column layout with virtualization scroll fix, prevent auto-refresh on tab switch, default to All Comments, safe comment auto-expand (dialog/single-post only), ad & suggested post auto-hide, volume and layout controls. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:en     Multi-column layout with virtualization scroll fix, prevent auto-refresh on tab switch, default to All Comments, safe comment auto-expand (dialog/single-post only), ad & suggested post auto-hide, volume and layout controls. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:zh-TW  多欄化樣式（含防回捲空白修復）、防切分頁自動重新整理、預設切換所有留言、安全版自動展開留言（僅限燈箱與單一貼文頁）、自動隱藏廣告與推薦貼文、音量與版面控制。改編自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
@@ -305,9 +305,13 @@
       el.matches(CONFIG.FLEX_ITEM_SELECTOR)
     );
   }
+  const SEE_MORE_TEXT_RE = /^(?:[….·\s]*)(查看更多|顯示更多|展开更多|显示更多|See more|Show more)(?:[….·\s]*)$/i;
   function isPostSeeMore(el) {
     if (!el || el.nodeType !== 1 || !el.matches(CONFIG.SEE_MORE_SELECTOR)) return false;
     if (inCommentScope(el)) return false;
+    if (el.closest(CONFIG.POST_HEADER_SELECTOR) || el.querySelector("a[href]")) return false;
+    const txt = (el.textContent || "").trim();
+    if (!txt || txt.length > 20 || !SEE_MORE_TEXT_RE.test(txt)) return false;
     if (el.closest(CONFIG.STORY_MSG_SELECTOR)) return true;
     const cached = seeScopeCache.get(el);
     if (cached !== undefined) return cached;
@@ -437,6 +441,7 @@
     }
     return null;
   }
+  const CLOSE_DIALOG_ARIA_RE = /^(關閉|关闭|Close)$/i;
   function findHideButton(root) {
     if (!root) return null;
     const cached = hideCache.get(root);
@@ -445,6 +450,8 @@
     for (let i = 0; i < icons.length; i++) {
       const host = icons[i].closest(CONFIG.HIDE_HOST_SELECTOR);
       if (host && root.contains(host)) {
+        const aria = (host.getAttribute("aria-label") || "").trim();
+        if (aria && CLOSE_DIALOG_ARIA_RE.test(aria)) continue;
         hideCache.set(root, host);
         return host;
       }
@@ -884,9 +891,14 @@
   const commentExpandCount = new WeakMap();
   const COMMENT_EXPAND_MAX = 3;
   const switchedCommentScopes = new WeakSet();
+  const switchedCommentPaths = new Set();
   const COMMENT_SORT_TRIGGER_RE = /^(最相關|最相關留言|熱門留言|最相关|最相关评论|热门评论|Most relevant|Most relevant comments|Top comments)$/i;
   const ALL_COMMENTS_OPTION_RE = /^(所有留言|全部留言|全部评论|所有评论|All comments)$/i;
+  const MORE_COMMENT_TEXT_RE = /(查看更多留言|查看先前的留言|檢視更多留言|查看全部|檢視全部|則回覆|查看更多评论|查看之前的评论|条回复|View more comments|View previous comments|View all \d+ comments|more replies|View \d+ more)/i;
+  const LIKE_ARIA_ALLOW_RE = /(讚|赞|Like)/i;
+  const LIKE_ARIA_DENY_RE = /(取消|移除|Unlike|Remove)/i;
   let allCommentsLastAt = -1e9;
+  let allCommentsHoldUntil = -1e9;
   let preventRefreshBound = false;
   function isHomeFeedPath() {
     const p = window.location.pathname;
@@ -912,21 +924,28 @@
     const scopes = [];
     const dialogs = document.querySelectorAll('[role="dialog"]');
     for (let i = 0; i < dialogs.length; i++) {
-      if (dialogs[i].isConnected && !switchedCommentScopes.has(dialogs[i])) scopes.push(dialogs[i]);
+      if (dialogs[i].isConnected && !switchedCommentScopes.has(dialogs[i])) scopes.push({ el: dialogs[i], path: null });
     }
-    if (!scopes.length && isSinglePostOrDialog(document.body) && !switchedCommentScopes.has(document.body)) {
-      scopes.push(document.body);
+    const curPath = window.location.pathname;
+    if (!scopes.length && isSinglePostOrDialog(document.body) && !switchedCommentPaths.has(curPath)) {
+      scopes.push({ el: document.body, path: curPath });
     }
     for (let s = 0; s < scopes.length; s++) {
-      const scope = scopes[s];
+      const { el: scope, path } = scopes[s];
       const buttons = scope.querySelectorAll('div[role="button"]');
       for (let i = 0; i < buttons.length; i++) {
         const btn = buttons[i];
         if (!btn.isConnected) continue;
         const txt = (btn.textContent || "").trim();
         if (!txt || txt.length > 24 || !COMMENT_SORT_TRIGGER_RE.test(txt)) continue;
-        switchedCommentScopes.add(scope);
+        if (path) {
+          switchedCommentPaths.add(path);
+          trimSet(switchedCommentPaths, 200);
+        } else {
+          switchedCommentScopes.add(scope);
+        }
         allCommentsLastAt = t;
+        allCommentsHoldUntil = t + 350;
         safeClick(btn);
         setTimeout(() => {
           const menuItems = document.querySelectorAll('[role="menuitem"],[role="menuitemradio"]');
@@ -999,6 +1018,8 @@
       if (!el.isConnected) continue;
       if (!isSinglePostOrDialog(el)) continue;
       if (el.querySelector("svg")) continue;
+      const txt = (el.textContent || "").trim();
+      if (!txt || !MORE_COMMENT_TEXT_RE.test(txt)) continue;
       if (isAdRoot(getPostRoot(el))) continue;
       let rec = moreClicks.get(el);
       if (!rec) {
@@ -1016,6 +1037,8 @@
   }
   function likeEligible(el) {
     if (!el || !el.isConnected || isLiked(el)) return false;
+    const aria = (el.getAttribute("aria-label") || el.parentElement?.getAttribute("aria-label") || "").trim();
+    if (aria && (!LIKE_ARIA_ALLOW_RE.test(aria) || LIKE_ARIA_DENY_RE.test(aria))) return false;
     const id = getLikeButtonId(el);
     if (userUnlikedIds.has(id) || autoClickedLikeIds.has(id) || recentlyClicked.has(el)) return false;
     if (isPostLike(el) && !isOrganicReady(getPostRoot(el))) return false;
@@ -1072,6 +1095,7 @@
   function hideNextAd(t) {
     for (const root of visiblePosts) {
       if (!root.isConnected) continue;
+      if (root.closest('[role="dialog"]')) continue;
       if (!isAdRoot(root)) continue;
       const last = adAttempts.get(root);
       if (last !== undefined && t - last < CONFIG.AD_RETRY_MS) continue;
@@ -1247,7 +1271,7 @@
       if (state.buttons.allComments) switchToAllComments();
       if ((state.buttons.postExpand || state.buttons.otherExpand) && (!state.buttons.adHide || state.adPrimed)) {
         if (state.buttons.postExpand) expandNextPost();
-        if (state.buttons.otherExpand) {
+        if (state.buttons.otherExpand && t >= allCommentsHoldUntil) {
           expandComments();
           expandReplies();
           expandMoreComments();
@@ -1290,7 +1314,7 @@
       ".xornbnt.x1t2pt76.xylbxtu.x1q0g3np.xozqiw3.x1cy8zhl.x1qughib.xeuugli.xs83m0k.x1iyjqo2.x1r8uery.x1n2onr6.x78zum5.x1ja2u2z.x9f619," +
       ".x1t2pt76.x78zum5.xs83m0k.x1iyjqo2.x1r8uery.xeuugli.x193iq5w.xdt5ytf.x1ja2u2z.x1n2onr6.x9f619{max-width:100%}";
     const flexContainer =
-    ".x6o7n8i.x1unhpq9.x1hc1fzr>div>div,.x1xwk8fm.x193iq5w{display:flex;flex-wrap:wrap;gap:var(--column-gap);justify-content:flex-start;align-content:flex-start}";
+      ".x6o7n8i.x1unhpq9.x1hc1fzr>div>div,.x1xwk8fm.x193iq5w{display:flex;flex-wrap:wrap;gap:var(--column-gap);justify-content:flex-start;align-content:flex-start}";
     const flexItem = `${CONFIG.FLEX_ITEM_SELECTOR}{width:calc((100% - (var(--column-gap)*(var(--column-count) - 1)))/var(--column-count));max-height:var(--max-post-height);overflow-y:auto;overflow-x:hidden;overflow-anchor:auto;scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:#1877f2 rgba(120,130,150,.25)}`;
     const virtualFixCSS =
       ".x6o7n8i.x1unhpq9.x1hc1fzr>div>div>:is(:empty,[data-virtualized],:not(:has([role='article'],[data-ad-rendering-role],h2,h3,img,video)))," +
