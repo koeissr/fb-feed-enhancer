@@ -1,0 +1,9 @@
+# 原始參考備份檔與本機開發規劃文件（不納入公開 Repo）
+Facebook工人智慧DX.js
+docs/
+
+# 系統與暫存檔
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
