@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.3 (2026-11-20)
+
+### Fixed
+- 修復捲動至 FB 虛擬化臨界高度時頁面不自主上下不停抖動的問題：移除導致掛載／卸載高度反差的 `virtualFixCSS`（保留移除 `contain` 修復），將動態牆容器與卡片改設 `overflow-anchor: none`，並關閉全域 `:root{scroll-behavior: smooth}` 避免捲軸補償震盪。
+
 ## v1.0.2 (2026-11-20)
 
 ### Fixed
