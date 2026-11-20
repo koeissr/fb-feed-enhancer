@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.4 (2026-11-20)
+
+### Fixed
+- 恢復動態牆容器與貼文卡片之 `overflow-anchor: auto`（同時維持移除 `virtualFixCSS` 與關閉全域 `scroll-behavior: smooth`），解決向下自動載入新貼文時因上方舊貼文卸載或廣告隱藏導致畫面突然跳捲的問題。
+
 ## v1.0.3 (2026-11-20)
 
 ### Fixed

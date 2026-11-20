@@ -4,7 +4,7 @@
 // @name:zh-TW   FB 動態牆增強器
 // @name:zh-CN   FB 动态墙增强器
 // @namespace    https://github.com/koeissr/fb-feed-enhancer
-// @version      1.0.3
+// @version      1.0.4
 // @description  Multi-column layout with virtualization scroll fix, prevent auto-refresh on tab switch, default to All Comments, safe comment auto-expand (dialog/single-post only), ad & suggested post auto-hide, volume and layout controls. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:en     Multi-column layout with virtualization scroll fix, prevent auto-refresh on tab switch, default to All Comments, safe comment auto-expand (dialog/single-post only), ad & suggested post auto-hide, volume and layout controls. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:zh-TW  多欄化樣式（含防回捲空白修復）、防切分頁自動重新整理、預設切換所有留言、安全版自動展開留言（僅限燈箱與單一貼文頁）、自動隱藏廣告與推薦貼文、音量與版面控制。改編自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
@@ -1314,8 +1314,8 @@
       ".xornbnt.x1t2pt76.xylbxtu.x1q0g3np.xozqiw3.x1cy8zhl.x1qughib.xeuugli.xs83m0k.x1iyjqo2.x1r8uery.x1n2onr6.x78zum5.x1ja2u2z.x9f619," +
       ".x1t2pt76.x78zum5.xs83m0k.x1iyjqo2.x1r8uery.xeuugli.x193iq5w.xdt5ytf.x1ja2u2z.x1n2onr6.x9f619{max-width:100%}";
     const flexContainer =
-      ".x6o7n8i.x1unhpq9.x1hc1fzr>div>div,.x1xwk8fm.x193iq5w{display:flex;flex-wrap:wrap;gap:var(--column-gap);justify-content:flex-start;align-content:flex-start;overflow-anchor:none}";
-    const flexItem = `${CONFIG.FLEX_ITEM_SELECTOR}{width:calc((100% - (var(--column-gap)*(var(--column-count) - 1)))/var(--column-count));max-height:var(--max-post-height);overflow-y:auto;overflow-x:hidden;overflow-anchor:none;scrollbar-width:thin;scrollbar-color:#1877f2 rgba(120,130,150,.25)}`;
+      ".x6o7n8i.x1unhpq9.x1hc1fzr>div>div,.x1xwk8fm.x193iq5w{display:flex;flex-wrap:wrap;gap:var(--column-gap);justify-content:flex-start;align-content:flex-start;overflow-anchor:auto}";
+    const flexItem = `${CONFIG.FLEX_ITEM_SELECTOR}{width:calc((100% - (var(--column-gap)*(var(--column-count) - 1)))/var(--column-count));max-height:var(--max-post-height);overflow-y:auto;overflow-x:hidden;overflow-anchor:auto;scrollbar-width:thin;scrollbar-color:#1877f2 rgba(120,130,150,.25)}`;
     const hideElements =
       ".x1daaz14.x1t2pt76,.xwib8y2.x1y1aw1k.xwya9rg,.xq1tmr.xvue9z>.x1yztbdb,footer{display:none}";
     return root + pageSmoothCSS + sidebarCSS + containerMaxWidth + flexContainer + flexItem + expandWidthCSS + hideElements;
