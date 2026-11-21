@@ -1,5 +1,25 @@
 # Changelog
 
+## v2.0.0 (2026-11-22)
+
+### Added
+- **模組化源碼 + 產出單檔架構**：將單體腳本拆解為 14 個模組（`src/core/*`、`src/modules/*`、`src/ui/*`、`src/main.js`），新增零外部依賴建置腳本 [build.mjs](file:///d:/Projects/fb-feed-enhancer/scripts/build.mjs) 產出根目錄 `fb-feed-enhancer.user.js`（維持 GitHub Raw 一鍵安裝）。
+- **莫蘭迪 ⚙️ 進階設定彈窗**：於工具列頂端新增 `⚙️` 設定入口，以低飽和莫蘭迪淺色系彈窗統一管理所有進階開關、留言排序偏好、關鍵字黑名單與一鍵重置，全面汰除舊暗黑背景與純黑按鈕。
+- **Phase 1 整合功能**：
+  - Reels 播放時自動隱藏標題遮罩（暫停或移入滑鼠時恢復）。
+  - 獨立介面深度乾淨化 CSS（右側欄、頂部商店頁籤、左側欄頁尾、限時動態／Reels 推薦區塊）。
+  - 未登入訪客模式去登入牆與 `overflow` 捲動解鎖。
+  - 外連網址淨化（自動展開 `l.facebook.com/l.php?u=...` 並移除 `fbclid` / `__cft__` / `__tn__` 等追蹤參數）。
+  - 留言排序增強：支援設定「所有留言 / 最新留言」偏好，並支援燈箱內快捷鍵 `Insert`（觸發偏好）與 `Ctrl+Insert`（反轉切換）。
+- **Phase 2 整合功能**：
+  - 擴充內容淨化：非破壞式（`data-ffe-filtered="1"`）隱藏 Meta AI 卡片與「你可能認識的人」區塊。
+  - 自訂關鍵字黑名單：支援多組關鍵字即時套用隱藏與重置還原，不破壞 FB 虛擬捲動結構。
+- 新增真實 Chrome Headless CDP 無 Mock 實體驗收腳本 [real_physical_verification_v2.mjs](file:///d:/Projects/fb-feed-enhancer/scripts/real_physical_verification_v2.mjs)。
+
+### Changed
+- 左側浮動工具列改採莫蘭迪柔白半透明與鼠尾草綠啟用配色。
+- 維持零外部網路權限邊界（僅使用 `GM_setValue`、`GM_getValue`、`unsafeWindow`）。
+
 ## v1.0.4 (2026-11-20)
 
 ### Fixed
