@@ -166,10 +166,40 @@
     trimSet(expandedPostKeys, CONFIG.MAX_EXPANDED_KEYS);
     trimSet(postRoots, CONFIG.MAX_POST_ROOTS);
   }
+  const NATIVE_UNMUTE_RE = /^(取消靜音|取消静音|開啟聲音|开启声音|打開聲音|打开声音|Unmute|Audio is muted)$/i;
+  const NATIVE_MUTE_RE = /^(靜音|静音|關閉聲音|关闭声音|Mute)$/i;
+
+  let suppressDrawerAutoClose = false;
+
+  function syncNativeMuteButton(wantUnmute) {
+    if (!document.body) return false;
+    const re = wantUnmute ? NATIVE_UNMUTE_RE : NATIVE_MUTE_RE;
+    const candidates = document.querySelectorAll('[role="button"][aria-label], button[aria-label]');
+    let clicked = false;
+    for (let i = 0; i < candidates.length; i++) {
+      const btn = candidates[i];
+      if (!btn.isConnected || btn.closest(".ww-rail") || btn.closest("#ffe-settings-modal")) continue;
+      const lbl = (btn.getAttribute("aria-label") || "").trim();
+      if (!lbl || !re.test(lbl)) continue;
+      const r = btn.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) continue;
+      try {
+        suppressDrawerAutoClose = true;
+        btn.click();
+        clicked = true;
+        break;
+      } catch {
+      } finally {
+        suppressDrawerAutoClose = false;
+      }
+    }
+    return clicked;
+  }
+
   function applyVolumeTo(v) {
     const vol = state.settings.volume;
     if (v.volume !== vol) v.volume = vol;
-    if (v.muted) v.muted = false;
   }
   function adoptVideo(v) {
     if (!state.buttons.volume || !v || !v.isConnected) return;

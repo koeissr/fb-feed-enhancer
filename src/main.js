@@ -155,6 +155,12 @@
     resources.observers.nav = null;
     if (resources.panel?.isConnected) resources.panel.remove();
     resources.panel = null;
+    for (const drawer of Object.values(resources.drawerContainers || {})) {
+      if (drawer?.isConnected) drawer.remove();
+    }
+    resources.drawerContainers = {};
+    resources.drawerTriggers = {};
+    resources.activeDrawer = null;
     if (resources.settingsModal?.isConnected) resources.settingsModal.remove();
     resources.settingsModal = null;
     resources.settingsBtn = null;
@@ -203,10 +209,13 @@
     registerEventListener(window, "scroll", markScroll, { passive: true, capture: true });
     if (HAS_SCROLL_END) registerEventListener(window, "scrollend", markScrollEnd, { passive: true, capture: true });
     registerEventListener(document, "mouseover", handleMouseOver, { passive: true });
+    registerEventListener(document, "pointermove", handleHoverVideoPointerMove, { passive: true });
     registerEventListener(document, "click", onClick, { passive: true });
+    registerEventListener(document, "click", handleHoverVideoClick, { passive: true });
     registerEventListener(document, "click", handleLinkClickSanitize, { capture: true });
     registerEventListener(document, "keydown", handleCommentSortHotkey);
     registerEventListener(document, "play", handleVideoPlay, { passive: true, capture: true });
+    registerEventListener(document, "play", handleHoverVideoPlay, { capture: true });
     registerEventListener(document, "play", handleReelVideoEvent, { passive: true, capture: true });
     registerEventListener(document, "pause", handleReelVideoEvent, { passive: true, capture: true });
     registerEventListener(document, "ended", handleReelVideoEvent, { passive: true, capture: true });

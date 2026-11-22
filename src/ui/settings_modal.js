@@ -10,7 +10,7 @@
       return {
         ariaLabel: "FB Feed Enhancer 進階設定",
         title: "⚙️ FB 動態牆增強器 — 進階設定",
-        subtitle: "v2.0.2 控制中心｜所有設定即時生效並自動儲存",
+        subtitle: "v2.1.0 控制中心｜所有設定即時生效並自動儲存",
         closeTitle: "關閉設定視窗",
         commentSectionTitle: "留言排序偏好與快捷鍵",
         commentSortLabel: "預設留言排序目標",
@@ -29,6 +29,7 @@
           {
             title: "介面淨化與播放體驗",
             items: [
+              { key: "hoverPlayVideo", label: "動態牆影片懸浮播放（預設暫停）", desc: "Feed 動態牆影片預設不自動播放，滑鼠移入播放、移開暫停（排除 Reels/Watch）" },
               { key: "reelsTitleHide", label: "Reels 播放時自動隱藏標題遮罩", desc: "播放 Reels 時淡出標題文字，暫停或移入滑鼠時恢復" },
               { key: "cleanRightRail", label: "隱藏右側欄（贊助／聯絡人／群聊）", desc: "移除右側欄區塊，釋放橫向瀏覽空間" },
               { key: "cleanMarketplaceTab", label: "隱藏頂部「商店」頁籤", desc: "隱藏頂部導覽列的 Marketplace 入口" },
@@ -57,7 +58,7 @@
     return {
       ariaLabel: "FB Feed Enhancer Advanced Settings",
       title: "⚙️ Facebook Feed Enhancer — Settings",
-      subtitle: "v2.0.2 Control Center | Changes apply immediately and auto-save",
+      subtitle: "v2.1.0 Control Center | Changes apply immediately and auto-save",
       closeTitle: "Close settings",
       commentSectionTitle: "Comment Sorting & Hotkeys",
       commentSortLabel: "Default comment sort target",
@@ -76,6 +77,7 @@
         {
           title: "UI Cleaner & Playback",
           items: [
+            { key: "hoverPlayVideo", label: "Feed video hover-to-play (paused by default)", desc: "Prevents Feed video autoplay; plays on hover and pauses on leave (excludes Reels/Watch)" },
             { key: "reelsTitleHide", label: "Auto-hide Reels title overlay during playback", desc: "Fades out Reels caption text while playing; restores on pause or hover" },
             { key: "cleanRightRail", label: "Hide Right Rail (Sponsored / Contacts / Chats)", desc: "Removes the right sidebar to maximize feed width" },
             { key: "cleanMarketplaceTab", label: "Hide top Marketplace tab", desc: "Hides the Marketplace shortcut in the top navigation bar" },
@@ -107,6 +109,11 @@
       applyCleanerCSS();
     } else if (key === "reelsTitleHide") {
       if (!state.buttons.reelsTitleHide) clearAllReelPlayingStates();
+    } else if (key === "hoverPlayVideo") {
+      syncHoverPlayVideos();
+      const btn = document.getElementById("ffe-btn-hover-play");
+      if (btn) updateButtonStyle(btn, state.buttons.hoverPlayVideo);
+      updateCategoryDots();
     } else if (key === "removeLoginWall") {
       if (state.buttons.removeLoginWall) applyLoginWallRemoval();
     } else if (key === "sanitizeLinks") {
@@ -118,6 +125,7 @@
 
   function resetAdvancedSettings() {
     const defaults = {
+      hoverPlayVideo: false,
       reelsTitleHide: true,
       cleanRightRail: false,
       cleanMarketplaceTab: false,

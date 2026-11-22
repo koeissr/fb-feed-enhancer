@@ -4,11 +4,11 @@
 // @name:zh-TW   FB 動態牆增強器 (Facebook 淨化與多欄)
 // @name:zh-CN   FB 动态墙增强器 (Facebook 净化与多栏)
 // @namespace    https://github.com/koeissr/fb-feed-enhancer
-// @version      2.0.2
-// @description  Facebook Cleaner & Feed Enhancer: Multi-column layout with virtualization scroll fix, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
-// @description:en     Facebook Cleaner & Feed Enhancer: Multi-column layout with virtualization scroll fix, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
-// @description:zh-TW  Facebook 淨化與動態牆增強器：多欄化樣式（防回捲修復）、雙語進階設定彈窗、防切分頁重整、所有/最新留言切換與快捷鍵、Reels 播放隱藏標題、介面深度淨化、訪客去登入牆與捲動解鎖、外連網址淨化、Meta AI/推薦區塊與關鍵字黑名單過濾。改編自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
-// @description:zh-CN  Facebook 净化与动态墙增强器：多栏化样式（防回滚修复）、双语高级设置弹窗、防切标签页刷新、全部/最新评论切换与快捷键、Reels 播放隐藏标题、界面深度净化、访客去登录墙与滚动解锁、外链网址净化、Meta AI/推荐区块与关键词黑名单过滤。改编自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
+// @version      2.1.0
+// @description  Facebook Cleaner & Feed Enhancer: Compact flyout drawer toolbar, multi-column layout with virtualization scroll fix, Feed hover-to-play video, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall & transparent overlay bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
+// @description:en     Facebook Cleaner & Feed Enhancer: Compact flyout drawer toolbar, multi-column layout with virtualization scroll fix, Feed hover-to-play video, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall & transparent overlay bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
+// @description:zh-TW  Facebook 淨化與動態牆增強器：精簡分類橫拉抽屜工具列、多欄化樣式（防回捲修復）、動態牆影片懸浮播放、雙語進階設定彈窗、防切分頁重整、所有/最新留言切換與快捷鍵、Reels 播放隱藏標題、介面深度淨化、訪客去登入牆與透明遮罩、外連網址淨化、Meta AI/推薦區塊與關鍵字黑名單過濾。改編自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
+// @description:zh-CN  Facebook 净化与动态墙增强器：精简分类横拉抽屉工具栏、多栏化样式（防回滚修复）、动态墙视频悬停播放、双语高级设置弹窗、防切标签页刷新、全部/最新评论切换与快捷键、Reels 播放隐藏标题、界面深度净化、访客去登录墙与透明遮罩、外链网址净化、Meta AI/推荐区块与关键词黑名单过滤。改编自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
 // @author       koeissr (based on Dxzy)
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=facebook.com
 // @match        https://www.facebook.com/*
@@ -171,6 +171,7 @@
       expandWidth: GM_getValue("expandWidthEnabled", false),
       hoverPad: GM_getValue("hoverPadEnabled", true),
       reelsTitleHide: GM_getValue("reelsTitleHideEnabled", true),
+      hoverPlayVideo: GM_getValue("hoverPlayVideoEnabled", false),
       cleanRightRail: GM_getValue("cleanRightRailEnabled", false),
       cleanMarketplaceTab: GM_getValue("cleanMarketplaceTabEnabled", false),
       cleanLeftFooter: GM_getValue("cleanLeftFooterEnabled", true),
@@ -215,6 +216,9 @@
     eventHandlers: [],
     cycleTimer: 0,
     panel: null,
+    activeDrawer: null,
+    drawerContainers: {},
+    drawerTriggers: {},
     settingsModal: null,
     settingsBtn: null,
     padBtn: null,
@@ -734,34 +738,97 @@
 
   function isGuestMode() {
     if (!document.body) return false;
-    // 已登入狀態通常存在帳號切換選單或個人大頭貼導覽
     if (document.querySelector('div[role="banner"] a[href*="/me"], div[role="banner"] [aria-label*="帳號"], div[role="banner"] [aria-label*="Account"], div[role="banner"] [aria-label*="你的個人檔案"], div[role="banner"] [aria-label*="Your profile"]')) {
       return false;
     }
     return !!document.querySelector('form[action*="login"], input[name="email"][type="text"], a[href*="/login/"]');
   }
 
+  function isSafeOverlayContainer(node) {
+    if (!node || node.nodeType !== 1) return false;
+    if (node === document.body || node === document.documentElement) return false;
+    if (node.id === "ffe-settings-modal" || node === resources.panel) return false;
+    if (node.id && node.id.startsWith("mount_")) return false;
+    if (node.querySelector('div[role="main"], div[role="banner"], video, #ffe-settings-modal, .ww-rail')) return false;
+    return true;
+  }
+
+  function isFullViewportBackdrop(node) {
+    if (!isSafeOverlayContainer(node)) return false;
+    let cs;
+    try {
+      cs = window.getComputedStyle(node);
+    } catch {
+      return false;
+    }
+    if (!cs || cs.display === "none") return false;
+    const rect = node.getBoundingClientRect();
+    return rect.width >= window.innerWidth * 0.85 && rect.height >= window.innerHeight * 0.85;
+  }
+
+  function hideLoginNode(node) {
+    if (!node || node.getAttribute("data-ffe-filtered") === "1") return 0;
+    node.setAttribute("data-ffe-filtered", "1");
+    node.setAttribute("data-ffe-login-wall", "1");
+    return 1;
+  }
+
   function applyLoginWallRemoval() {
     if (!state.buttons.removeLoginWall || !document.body) return 0;
     if (!isGuestMode()) return 0;
     let removedCount = 0;
+    let foundLoginWall = false;
 
-    // 1. 隱藏阻擋畫面的登入彈窗與底部註冊橫幅
+    // 1. 偵測登入彈窗與註冊橫幅，並向上追溯隱藏專屬外層白霧與透明 Portal 遮罩（含 position: static 全螢幕外殼）
     const dialogs = document.querySelectorAll('[role="dialog"], [data-nosnippet], #login_popup_cta_form');
     for (let i = 0; i < dialogs.length; i++) {
       const el = dialogs[i];
       if (!el.isConnected || el.id === "ffe-settings-modal") continue;
+      if (!isSafeOverlayContainer(el)) continue;
       const hasLoginForm = !!el.querySelector('input[name="email"], input[name="pass"], a[href*="/login"], a[href*="/r.php"]');
       const txt = (el.textContent || "").slice(0, 300);
-      if (hasLoginForm || LOGIN_WALL_TEXT_RE.test(txt)) {
-        if (el.getAttribute("data-ffe-filtered") !== "1") {
-          el.setAttribute("data-ffe-filtered", "1");
+      if (!hasLoginForm && !LOGIN_WALL_TEXT_RE.test(txt)) continue;
+
+      foundLoginWall = true;
+      let hideTarget = el;
+      let cur = el;
+      for (let depth = 0; depth < 12; depth++) {
+        const parent = cur.parentElement;
+        if (!parent || !isSafeOverlayContainer(parent)) break;
+        // 同步隱藏同層的無文字全螢幕遮罩兄弟節點
+        const siblings = parent.children;
+        for (let s = 0; s < siblings.length; s++) {
+          const sib = siblings[s];
+          if (sib === cur) continue;
+          if ((sib.textContent || "").trim().length === 0 && isFullViewportBackdrop(sib)) {
+            removedCount += hideLoginNode(sib);
+          }
+        }
+        if (isFullViewportBackdrop(parent)) {
+          hideTarget = parent;
+        }
+        cur = parent;
+      }
+      removedCount += hideLoginNode(hideTarget);
+      if (hideTarget !== el) {
+        removedCount += hideLoginNode(el);
+      }
+    }
+
+    // 2. 解除底層主容器可能被附加的 aria-hidden / inert 互動鎖定
+    if (foundLoginWall || document.querySelector('[data-ffe-login-wall="1"]')) {
+      const lockedNodes = document.querySelectorAll('[aria-hidden="true"], [inert]');
+      for (let i = 0; i < lockedNodes.length; i++) {
+        const ln = lockedNodes[i];
+        if (ln.querySelector('div[role="main"], video')) {
+          if (ln.getAttribute("aria-hidden") === "true") ln.removeAttribute("aria-hidden");
+          if (ln.hasAttribute("inert")) ln.removeAttribute("inert");
           removedCount++;
         }
       }
     }
 
-    // 2. 解鎖訪客模式常見的捲動鎖定（overflow: hidden / position: fixed）
+    // 3. 解鎖訪客模式常見的捲動鎖定（overflow: hidden）
     const htmlEl = document.documentElement;
     if (htmlEl && (htmlEl.style.overflow === "hidden" || htmlEl.style.overflowY === "hidden")) {
       htmlEl.style.overflow = "auto";
@@ -915,6 +982,105 @@
       syncReelPlayingState(v, true);
     } else if (e.type === "pause" || e.type === "ended") {
       syncReelPlayingState(v, false);
+    }
+  }
+
+  /* === MODULE: src/modules/hover_video.js === */
+  const hoveredVideos = new WeakSet();
+  const manualPlayingVideos = new WeakSet();
+
+  function isFeedHoverVideoTarget(v) {
+    if (!state.buttons.hoverPlayVideo || !v || v.tagName !== "VIDEO" || !v.isConnected) return false;
+    // 自動排除 Reels、Watch 獨立影片頁與貼文燈箱
+    if (/^\/(reel|watch)\//i.test(window.location.pathname)) return false;
+    if (v.closest('[role="dialog"]')) return false;
+    return true;
+  }
+
+  function findVideoForPointerTarget(target) {
+    if (!target || target.nodeType !== 1) return null;
+    if (target.tagName === "VIDEO") return target;
+    const direct = target.closest("video");
+    if (direct) return direct;
+    // Facebook 影片外層常有一層透明點擊覆蓋層，往上找 5 層內的專屬影片容器
+    let node = target;
+    for (let i = 0; i < 5 && node && node !== document.body; i++) {
+      if (node.matches && node.matches('[role="article"], [aria-posinset]')) break;
+      const vids = node.querySelectorAll ? node.querySelectorAll("video") : null;
+      if (vids && vids.length === 1) return vids[0];
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  let activeHoverVideo = null;
+
+  function handleHoverVideoPlay(e) {
+    const v = e.target;
+    if (!isFeedHoverVideoTarget(v)) return;
+    if (!hoveredVideos.has(v) && !manualPlayingVideos.has(v)) {
+      try {
+        v.pause();
+      } catch {}
+    }
+  }
+
+  function handleHoverVideoPointerMove(e) {
+    if (!state.buttons.hoverPlayVideo || !state.isActivePage) return;
+    const hitVideo = findVideoForPointerTarget(e.target);
+    const validVideo = hitVideo && isFeedHoverVideoTarget(hitVideo) ? hitVideo : null;
+    if (validVideo === activeHoverVideo) return;
+
+    // 離開前一支懸浮影片
+    if (activeHoverVideo) {
+      hoveredVideos.delete(activeHoverVideo);
+      if (!manualPlayingVideos.has(activeHoverVideo) && !activeHoverVideo.paused) {
+        try {
+          activeHoverVideo.pause();
+        } catch {}
+      }
+      activeHoverVideo = null;
+    }
+
+    // 進入新懸浮影片
+    if (validVideo) {
+      activeHoverVideo = validVideo;
+      hoveredVideos.add(validVideo);
+      if (validVideo.paused) {
+        try {
+          const p = validVideo.play();
+          if (p && typeof p.catch === "function") p.catch(() => {});
+        } catch {}
+      }
+    }
+  }
+
+  function handleHoverVideoClick(e) {
+    if (!state.buttons.hoverPlayVideo || !state.isActivePage) return;
+    const v = findVideoForPointerTarget(e.target);
+    if (!v || !isFeedHoverVideoTarget(v)) return;
+    if (manualPlayingVideos.has(v)) {
+      manualPlayingVideos.delete(v);
+    } else {
+      manualPlayingVideos.add(v);
+    }
+  }
+
+  function syncHoverPlayVideos() {
+    if (!document.body) return;
+    if (!state.buttons.hoverPlayVideo) {
+      activeHoverVideo = null;
+      return;
+    }
+    const videos = document.querySelectorAll("video");
+    for (let i = 0; i < videos.length; i++) {
+      const v = videos[i];
+      if (!isFeedHoverVideoTarget(v)) continue;
+      if (!hoveredVideos.has(v) && !manualPlayingVideos.has(v) && !v.paused) {
+        try {
+          v.pause();
+        } catch {}
+      }
     }
   }
 
@@ -1275,10 +1441,40 @@
     trimSet(expandedPostKeys, CONFIG.MAX_EXPANDED_KEYS);
     trimSet(postRoots, CONFIG.MAX_POST_ROOTS);
   }
+  const NATIVE_UNMUTE_RE = /^(取消靜音|取消静音|開啟聲音|开启声音|打開聲音|打开声音|Unmute|Audio is muted)$/i;
+  const NATIVE_MUTE_RE = /^(靜音|静音|關閉聲音|关闭声音|Mute)$/i;
+
+  let suppressDrawerAutoClose = false;
+
+  function syncNativeMuteButton(wantUnmute) {
+    if (!document.body) return false;
+    const re = wantUnmute ? NATIVE_UNMUTE_RE : NATIVE_MUTE_RE;
+    const candidates = document.querySelectorAll('[role="button"][aria-label], button[aria-label]');
+    let clicked = false;
+    for (let i = 0; i < candidates.length; i++) {
+      const btn = candidates[i];
+      if (!btn.isConnected || btn.closest(".ww-rail") || btn.closest("#ffe-settings-modal")) continue;
+      const lbl = (btn.getAttribute("aria-label") || "").trim();
+      if (!lbl || !re.test(lbl)) continue;
+      const r = btn.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) continue;
+      try {
+        suppressDrawerAutoClose = true;
+        btn.click();
+        clicked = true;
+        break;
+      } catch {
+      } finally {
+        suppressDrawerAutoClose = false;
+      }
+    }
+    return clicked;
+  }
+
   function applyVolumeTo(v) {
     const vol = state.settings.volume;
     if (v.volume !== vol) v.volume = vol;
-    if (v.muted) v.muted = false;
   }
   function adoptVideo(v) {
     if (!state.buttons.volume || !v || !v.isConnected) return;
@@ -1712,6 +1908,17 @@
       ".ww-rail::-webkit-scrollbar-track{background:#EAEBED;border-radius:3px}",
       ".ww-rail::-webkit-scrollbar-thumb{background:#6B8E9F;border-radius:3px}",
       ".ww-rail::-webkit-scrollbar-thumb:hover{background:#5A7C8D}",
+      ".ffe-cat-wrap{position:relative;display:flex;align-items:center}",
+      ".ffe-cat-btn{position:relative;padding:8px 0;width:40px;height:38px;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center;background:#FFFFFF;color:#2D3748;transition:background .15s ease,border-color .15s ease}",
+      ".ffe-cat-btn:hover{background:#F2F4F7;border-color:#CBD5E0}",
+      ".ffe-cat-btn.ffe-cat-active{background:#6B8E9F;color:#FFFFFF;border-color:#5A7C8D}",
+      ".ffe-cat-dot{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#7D9D8B;display:none}",
+      ".ffe-cat-btn.ffe-cat-has-on .ffe-cat-dot{display:block}",
+      ".ffe-cat-btn.ffe-cat-active .ffe-cat-dot{background:#FFFFFF}",
+      ".ffe-drawer{position:fixed;left:64px;z-index:10000;display:none;flex-direction:row;align-items:center;gap:8px;padding:8px 12px;background:rgba(247,248,250,0.97);border:1px solid #CBD5E0;border-radius:12px;box-shadow:0 10px 28px rgba(45,55,72,0.16);backdrop-filter:blur(8px);max-width:calc(100vw - 84px);overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif}",
+      ".ffe-drawer.ffe-drawer-open{display:flex}",
+      ".ffe-drawer-title{font-size:11.5px;font-weight:700;color:#6B8E9F;white-space:nowrap;padding-right:8px;border-right:1px solid #E2E8F0;margin-right:2px}",
+      ".ffe-drawer-cell{display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 0 auto}",
       ".ffe-modal-backdrop{position:fixed;inset:0;z-index:10050;background:rgba(234,235,237,0.74);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif}",
       ".ffe-modal-card{width:100%;max-width:560px;max-height:86vh;background:#F7F8FA;color:#2D3748;border:1px solid #E2E8F0;border-radius:14px;box-shadow:0 14px 36px rgba(45,55,72,0.14);display:flex;flex-direction:column;overflow:hidden}",
       ".ffe-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:#FFFFFF;border-bottom:1px solid #E2E8F0}",
@@ -1792,7 +1999,7 @@
       return {
         ariaLabel: "FB Feed Enhancer 進階設定",
         title: "⚙️ FB 動態牆增強器 — 進階設定",
-        subtitle: "v2.0.2 控制中心｜所有設定即時生效並自動儲存",
+        subtitle: "v2.1.0 控制中心｜所有設定即時生效並自動儲存",
         closeTitle: "關閉設定視窗",
         commentSectionTitle: "留言排序偏好與快捷鍵",
         commentSortLabel: "預設留言排序目標",
@@ -1811,6 +2018,7 @@
           {
             title: "介面淨化與播放體驗",
             items: [
+              { key: "hoverPlayVideo", label: "動態牆影片懸浮播放（預設暫停）", desc: "Feed 動態牆影片預設不自動播放，滑鼠移入播放、移開暫停（排除 Reels/Watch）" },
               { key: "reelsTitleHide", label: "Reels 播放時自動隱藏標題遮罩", desc: "播放 Reels 時淡出標題文字，暫停或移入滑鼠時恢復" },
               { key: "cleanRightRail", label: "隱藏右側欄（贊助／聯絡人／群聊）", desc: "移除右側欄區塊，釋放橫向瀏覽空間" },
               { key: "cleanMarketplaceTab", label: "隱藏頂部「商店」頁籤", desc: "隱藏頂部導覽列的 Marketplace 入口" },
@@ -1839,7 +2047,7 @@
     return {
       ariaLabel: "FB Feed Enhancer Advanced Settings",
       title: "⚙️ Facebook Feed Enhancer — Settings",
-      subtitle: "v2.0.2 Control Center | Changes apply immediately and auto-save",
+      subtitle: "v2.1.0 Control Center | Changes apply immediately and auto-save",
       closeTitle: "Close settings",
       commentSectionTitle: "Comment Sorting & Hotkeys",
       commentSortLabel: "Default comment sort target",
@@ -1858,6 +2066,7 @@
         {
           title: "UI Cleaner & Playback",
           items: [
+            { key: "hoverPlayVideo", label: "Feed video hover-to-play (paused by default)", desc: "Prevents Feed video autoplay; plays on hover and pauses on leave (excludes Reels/Watch)" },
             { key: "reelsTitleHide", label: "Auto-hide Reels title overlay during playback", desc: "Fades out Reels caption text while playing; restores on pause or hover" },
             { key: "cleanRightRail", label: "Hide Right Rail (Sponsored / Contacts / Chats)", desc: "Removes the right sidebar to maximize feed width" },
             { key: "cleanMarketplaceTab", label: "Hide top Marketplace tab", desc: "Hides the Marketplace shortcut in the top navigation bar" },
@@ -1889,6 +2098,11 @@
       applyCleanerCSS();
     } else if (key === "reelsTitleHide") {
       if (!state.buttons.reelsTitleHide) clearAllReelPlayingStates();
+    } else if (key === "hoverPlayVideo") {
+      syncHoverPlayVideos();
+      const btn = document.getElementById("ffe-btn-hover-play");
+      if (btn) updateButtonStyle(btn, state.buttons.hoverPlayVideo);
+      updateCategoryDots();
     } else if (key === "removeLoginWall") {
       if (state.buttons.removeLoginWall) applyLoginWallRemoval();
     } else if (key === "sanitizeLinks") {
@@ -1900,6 +2114,7 @@
 
   function resetAdvancedSettings() {
     const defaults = {
+      hoverPlayVideo: false,
       reelsTitleHide: true,
       cleanRightRail: false,
       cleanMarketplaceTab: false,
@@ -2194,7 +2409,7 @@
     }
     if (resources.padLabel?.isConnected) {
       resources.padLabel.textContent = state.buttons.hoverPad ? `${state.settings.hoverPad}px` : "off";
-      resources.padLabel.style.color = state.buttons.hoverPad ? "#4c9bff" : "#8a93a5";
+      resources.padLabel.style.color = state.buttons.hoverPad ? "#6B8E9F" : "#718096";
     }
   }
   function updateModeLabels() {
@@ -2208,6 +2423,48 @@
         ? "自動展開留言／回覆／更多留言（游標展開已停用）/ Comments, replies and more-comments auto-expand"
         : "自動展開留言／回覆／更多留言 / Comments, replies and more-comments auto-expand";
     }
+    updateCategoryDots();
+  }
+  function updateCategoryDots() {
+    const map = {
+      layout: state.buttons.sidebar || state.buttons.columns || state.buttons.height || state.buttons.expandWidth,
+      feed: state.buttons.preventRefresh || state.buttons.allComments || state.buttons.postExpand || state.buttons.otherExpand || state.buttons.adHide || state.buttons.like || state.buttons.autoLikePost || state.buttons.hoverPad,
+      media: state.buttons.volume || state.buttons.hoverPlayVideo,
+    };
+    for (const [cat, hasOn] of Object.entries(map)) {
+      const btn = resources.drawerTriggers?.[cat];
+      if (btn?.isConnected) {
+        btn.classList.toggle("ffe-cat-has-on", !!hasOn);
+      }
+    }
+  }
+  function closeAllDrawers() {
+    resources.activeDrawer = null;
+    for (const [cat, drawer] of Object.entries(resources.drawerContainers || {})) {
+      if (drawer?.isConnected) {
+        drawer.classList.remove("ffe-drawer-open");
+        drawer.style.display = "none";
+      }
+      const trig = resources.drawerTriggers?.[cat];
+      if (trig?.isConnected) trig.classList.remove("ffe-cat-active");
+    }
+  }
+  function toggleDrawer(cat) {
+    const drawer = resources.drawerContainers?.[cat];
+    const trig = resources.drawerTriggers?.[cat];
+    if (!drawer || !trig) return false;
+    const willOpen = resources.activeDrawer !== cat;
+    closeAllDrawers();
+    if (willOpen) {
+      const r = trig.getBoundingClientRect();
+      const topPos = Math.max(12, Math.min(window.innerHeight - 86, r.top - 6));
+      drawer.style.top = `${Math.round(topPos)}px`;
+      drawer.style.display = "flex";
+      drawer.classList.add("ffe-drawer-open");
+      trig.classList.add("ffe-cat-active");
+      resources.activeDrawer = cat;
+    }
+    return willOpen;
   }
   function createSmallButton(text, action) {
     const btn = document.createElement("button");
@@ -2217,7 +2474,7 @@
       borderRadius: "4px",
       cursor: "pointer",
       fontSize: "12px",
-      width: "20px",
+      width: "19px",
       textAlign: "center",
       backgroundColor: "#F2F4F7",
       color: "#2D3748",
@@ -2233,48 +2490,59 @@
       display: "flex",
       justifyContent: "space-between",
       width: "40px",
-      marginTop: "-5px",
+      gap: "2px",
     });
     for (let i = 0; i < buttons.length; i++) group.append(buttons[i]);
     return group;
+  }
+  function createDrawerCell(elements) {
+    const cell = document.createElement("div");
+    cell.className = "ffe-drawer-cell";
+    for (let i = 0; i < elements.length; i++) cell.appendChild(elements[i]);
+    return cell;
   }
   function createControlPanel() {
     if (!state.isActivePage || !document.body) return;
     if (state.panelCreated && resources.panel?.isConnected) return;
     if (resources.panel && !resources.panel.isConnected) {
       resources.panel = null;
+      resources.drawerContainers = {};
+      resources.drawerTriggers = {};
+      resources.activeDrawer = null;
       resources.padBtn = null;
       resources.padLabel = null;
       resources.likeBtn = null;
       resources.expandBtn = null;
+      resources.settingsBtn = null;
       state.panelCreated = false;
     }
+
     const panel = document.createElement("div");
     panel.className = "ww-rail";
+    panel.id = "ffe-dock";
     Object.assign(panel.style, {
       position: "fixed",
-      left: "0px",
-      bottom: "30px",
+      left: "8px",
+      bottom: "36px",
       zIndex: "9999",
       display: "flex",
       flexDirection: "column",
-      gap: "5px",
-      backgroundColor: "rgba(247,248,250,0.94)",
+      gap: "6px",
+      backgroundColor: "rgba(247,248,250,0.95)",
       border: "1px solid #CBD5E0",
       boxShadow: "0 6px 20px rgba(45,55,72,0.14)",
       backdropFilter: "blur(6px)",
-      maxHeight: "calc(100vh - 60px)",
-      overflowY: "auto",
-      overflowX: "hidden",
-      padding: "10px",
-      borderRadius: "10px",
+      padding: "8px",
+      borderRadius: "12px",
     });
-    const createIconButton = (icon, key, action, title = "") => {
+
+    const createIconButton = (icon, key, action, title = "", id = "") => {
       const btn = document.createElement("button");
+      if (id) btn.id = id;
       Object.assign(btn.style, {
-        padding: "8px 12px",
+        padding: "8px 0",
         border: "none",
-        borderRadius: "4px",
+        borderRadius: "6px",
         cursor: "pointer",
         fontWeight: "bold",
         width: "40px",
@@ -2285,6 +2553,7 @@
       });
       btn.textContent = icon;
       btn.title = title;
+      btn.setAttribute("data-ffe-btn", key);
       const handler = () => {
         state.buttons[key] = !state.buttons[key];
         GM_setValue(`${key}Enabled`, state.buttons[key]);
@@ -2296,109 +2565,9 @@
       updateButtonStyle(btn, state.buttons[key]);
       return btn;
     };
+
+    // === 1. 版面與排版抽屜元件 ===
     const sidebarBtn = createIconButton("📐", "sidebar", applyMultiColumnCSS, "側欄收縮 / Toggle sidebar");
-    const likeBtn = createIconButton(
-      "❤️",
-      "like",
-      () => {
-        if (!state.buttons.like) state.pendingLike = null;
-      },
-      "游標自動點讚 / Hover auto-like",
-    );
-    resources.likeBtn = likeBtn;
-    const autoLikePostBtn = createIconButton(
-      "👍",
-      "autoLikePost",
-      () => {
-        state.pendingLike = null;
-        seedInteractives();
-        syncCycleTimer(true);
-        pump(true);
-      },
-      "貼文自動點讚（每4秒，排除留言與廣告）/ Auto-like posts every 4s",
-    );
-    const adHideBtn = createIconButton(
-      "🚫",
-      "adHide",
-      () => {
-        seedInteractives();
-        if (state.buttons.adHide) {
-          state.adPrimed = false;
-          state.lastAdHideAt = -1e9;
-        }
-        syncCycleTimer(true);
-        pump(true);
-      },
-      "自動隱藏廣告與推薦貼文（每4秒，最優先）/ Auto-hide ads every 4s",
-    );
-    const postExpandBtn = createIconButton(
-      "📖",
-      "postExpand",
-      () => {
-        if (state.buttons.postExpand) {
-          seedInteractives();
-          pump(true);
-        }
-      },
-      "貼文自動展開查看更多（單次點擊不摺疊）/ Auto-expand post See More",
-    );
-    const expandBtn = createIconButton(
-      "💬",
-      "otherExpand",
-      () => {
-        if (state.buttons.otherExpand) {
-          seedInteractives();
-          pump(true);
-        }
-      },
-      "自動展開留言／摺疊回覆／查看更多留言（僅燈箱與單一貼文頁）/ Safe comment auto-expand",
-    );
-    resources.expandBtn = expandBtn;
-    const preventRefreshBtn = createIconButton(
-      "🔒",
-      "preventRefresh",
-      null,
-      "防止切換分頁自動重新整理 / Prevent auto-refresh on tab switch",
-    );
-    const allCommentsBtn = createIconButton(
-      "📋",
-      "allComments",
-      () => {
-        if (state.buttons.allComments) pump(true);
-      },
-      "預設切換所有留言（僅燈箱與單一貼文頁）/ Default to All comments",
-    );
-    const hoverBtn = createIconButton("🎯", "hoverPad", updatePadLabel, "游標觸發範圍（僅貼文）/ Post-only hover pad");
-    resources.padBtn = hoverBtn;
-    const hoverControlGroup = createControlGroup([
-      createSmallButton("−", () => adjustHoverPad(-CONFIG.HOVER_PAD_STEP)),
-      createSmallButton("+", () => adjustHoverPad(CONFIG.HOVER_PAD_STEP)),
-    ]);
-    const padLabel = document.createElement("div");
-    Object.assign(padLabel.style, {
-      width: "40px",
-      textAlign: "center",
-      fontSize: "10px",
-      lineHeight: "1.2",
-      marginTop: "-4px",
-      fontFamily: "ui-monospace,monospace",
-      fontWeight: "bold",
-      color: "#4c9bff",
-      flex: "0 0 auto",
-    });
-    resources.padLabel = padLabel;
-    const volumeBtn = createIconButton(
-      "🔊",
-      "volume",
-      () => {
-        if (state.buttons.volume) refreshVideoList();
-      },
-      "音量控制 / Volume control",
-    );
-    const volumeControlGroup = createControlGroup([
-      createSmallButton("−", () => adjustVolume(-0.1)),
-      createSmallButton("+", () => adjustVolume(0.1)),
-    ]);
     const columnBtn = createIconButton("🗂️", "columns", applyMultiColumnCSS, "多欄佈局 / Multi-column layout");
     const columnControlGroup = createControlGroup([
       createSmallButton("−", () => adjustColumnCount(-1)),
@@ -2414,36 +2583,164 @@
       createSmallButton("−", () => adjustExpandWidth(-CONFIG.EXPAND_WIDTH_STEP)),
       createSmallButton("+", () => adjustExpandWidth(CONFIG.EXPAND_WIDTH_STEP)),
     ]);
-    const settingsBtn = document.createElement("button");
-    settingsBtn.id = "ffe-settings-btn";
-    Object.assign(settingsBtn.style, {
-      padding: "8px 12px",
-      border: "none",
-      borderRadius: "4px",
-      cursor: "pointer",
-      fontWeight: "bold",
+
+    // === 2. 自動互動與淨化抽屜元件 ===
+    const preventRefreshBtn = createIconButton("🔒", "preventRefresh", null, "防止切換分頁自動重新整理 / Prevent auto-refresh on tab switch");
+    const allCommentsBtn = createIconButton("📋", "allComments", () => { if (state.buttons.allComments) pump(true); }, "預設切換所有／最新留言（燈箱內按 Insert / Ctrl+Insert）/ Auto comment sort");
+    const postExpandBtn = createIconButton("📖", "postExpand", () => { if (state.buttons.postExpand) { seedInteractives(); pump(true); } }, "貼文自動展開查看更多 / Auto-expand post See More");
+    const expandBtn = createIconButton("💬", "otherExpand", () => { if (state.buttons.otherExpand) { seedInteractives(); pump(true); } }, "安全版自動展開留言（僅燈箱與單一貼文頁）/ Safe comment auto-expand");
+    resources.expandBtn = expandBtn;
+    const adHideBtn = createIconButton("🚫", "adHide", () => {
+      seedInteractives();
+      if (state.buttons.adHide) {
+        state.adPrimed = false;
+        state.lastAdHideAt = -1e9;
+      }
+      syncCycleTimer(true);
+      pump(true);
+    }, "自動隱藏廣告與推薦貼文 / Auto-hide ads every 4s");
+    const likeBtn = createIconButton("❤️", "like", () => { if (!state.buttons.like) state.pendingLike = null; }, "游標自動點讚 / Hover auto-like");
+    resources.likeBtn = likeBtn;
+    const autoLikePostBtn = createIconButton("👍", "autoLikePost", () => {
+      state.pendingLike = null;
+      seedInteractives();
+      syncCycleTimer(true);
+      pump(true);
+    }, "貼文自動點讚（每4秒，排除留言與廣告）/ Auto-like posts every 4s");
+    const hoverBtn = createIconButton("🎯", "hoverPad", updatePadLabel, "游標觸發範圍（僅貼文）/ Post-only hover pad");
+    resources.padBtn = hoverBtn;
+    const hoverControlGroup = createControlGroup([
+      createSmallButton("−", () => adjustHoverPad(-CONFIG.HOVER_PAD_STEP)),
+      createSmallButton("+", () => adjustHoverPad(CONFIG.HOVER_PAD_STEP)),
+    ]);
+    const padLabel = document.createElement("div");
+    Object.assign(padLabel.style, {
       width: "40px",
       textAlign: "center",
-      fontSize: "16px",
-      lineHeight: "1",
-      flex: "0 0 auto",
+      fontSize: "10px",
+      lineHeight: "1.1",
+      fontFamily: "ui-monospace,monospace",
+      fontWeight: "bold",
+      color: "#6B8E9F",
     });
+    resources.padLabel = padLabel;
+
+    // === 3. 影片與媒體抽屜元件 ===
+    const volumeBtn = createIconButton(
+      "🔊",
+      "volume",
+      () => {
+        if (state.buttons.volume) {
+          refreshVideoList();
+          syncNativeMuteButton(true);
+        } else {
+          syncNativeMuteButton(false);
+        }
+      },
+      "音量控制與靜音聯動 / Volume control & mute sync",
+      "ffe-btn-volume",
+    );
+    const volumeControlGroup = createControlGroup([
+      createSmallButton("−", () => adjustVolume(-0.1)),
+      createSmallButton("+", () => adjustVolume(0.1)),
+    ]);
+    const hoverPlayBtn = createIconButton(
+      "▶️",
+      "hoverPlayVideo",
+      () => {
+        syncHoverPlayVideos();
+        syncSettingsModalValues();
+      },
+      "動態牆影片懸浮播放（預設暫停，滑鼠移入播放；排除 Reels/Watch）/ Feed hover-to-play video",
+      "ffe-btn-hover-play",
+    );
+
+    const buildDrawer = (cat, titleText, cells) => {
+      const drawer = document.createElement("div");
+      drawer.id = `ffe-drawer-${cat}`;
+      drawer.className = "ffe-drawer";
+      const titleEl = document.createElement("div");
+      titleEl.className = "ffe-drawer-title";
+      titleEl.textContent = titleText;
+      drawer.appendChild(titleEl);
+      for (let i = 0; i < cells.length; i++) drawer.appendChild(cells[i]);
+      document.body.appendChild(drawer);
+      resources.drawerContainers[cat] = drawer;
+      return drawer;
+    };
+
+    const isZh = typeof isZhLocale === "function" ? isZhLocale() : true;
+    buildDrawer("layout", isZh ? "版面排版" : "Layout", [
+      createDrawerCell([sidebarBtn]),
+      createDrawerCell([columnBtn, columnControlGroup]),
+      createDrawerCell([heightBtn, heightControlGroup]),
+      createDrawerCell([expandWidthBtn, expandWidthControlGroup]),
+    ]);
+    buildDrawer("feed", isZh ? "互動淨化" : "Feed & Auto", [
+      createDrawerCell([preventRefreshBtn]),
+      createDrawerCell([allCommentsBtn]),
+      createDrawerCell([postExpandBtn]),
+      createDrawerCell([expandBtn]),
+      createDrawerCell([adHideBtn]),
+      createDrawerCell([likeBtn]),
+      createDrawerCell([autoLikePostBtn]),
+      createDrawerCell([hoverBtn, hoverControlGroup, padLabel]),
+    ]);
+    buildDrawer("media", isZh ? "影片媒體" : "Media", [
+      createDrawerCell([volumeBtn, volumeControlGroup]),
+      createDrawerCell([hoverPlayBtn]),
+    ]);
+
+    const createCategoryTrigger = (cat, icon, titleText) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.id = `ffe-cat-${cat}`;
+      btn.className = "ffe-cat-btn";
+      btn.title = titleText;
+      btn.textContent = icon;
+      const dot = document.createElement("span");
+      dot.className = "ffe-cat-dot";
+      btn.appendChild(dot);
+      registerEventListener(btn, "click", (e) => {
+        e.stopPropagation();
+        toggleDrawer(cat);
+      });
+      resources.drawerTriggers[cat] = btn;
+      return btn;
+    };
+
+    const layoutCatBtn = createCategoryTrigger("layout", "🗂️", "版面與多欄排版 / Layout & Columns");
+    const feedCatBtn = createCategoryTrigger("feed", "⚡", "自動互動與廣告淨化 / Feed & Auto Controls");
+    const mediaCatBtn = createCategoryTrigger("media", "🎬", "影片音量與懸浮播放 / Video & Media");
+
+    const settingsBtn = document.createElement("button");
+    settingsBtn.type = "button";
+    settingsBtn.id = "ffe-settings-btn";
+    settingsBtn.className = "ffe-cat-btn";
     settingsBtn.textContent = "⚙️";
     settingsBtn.title = "進階設定（介面淨化／Reels／登入牆／外連淨化／黑名單）/ Advanced settings";
-    registerEventListener(settingsBtn, "click", () => toggleSettingsModal());
-    updateButtonStyle(settingsBtn, false);
+    registerEventListener(settingsBtn, "click", (e) => {
+      e.stopPropagation();
+      closeAllDrawers();
+      toggleSettingsModal();
+    });
     resources.settingsBtn = settingsBtn;
 
-    const items = [
-      settingsBtn,
-      sidebarBtn, preventRefreshBtn, allCommentsBtn, likeBtn, autoLikePostBtn, adHideBtn,
-      postExpandBtn, expandBtn,
-      hoverBtn, hoverControlGroup, padLabel,
-      volumeBtn, volumeControlGroup,
-      columnBtn, columnControlGroup, heightBtn, heightControlGroup,
-      expandWidthBtn, expandWidthControlGroup,
-    ];
-    for (let i = 0; i < items.length; i++) panel.appendChild(items[i]);
+    panel.appendChild(layoutCatBtn);
+    panel.appendChild(feedCatBtn);
+    panel.appendChild(mediaCatBtn);
+    panel.appendChild(settingsBtn);
+
+    // 點擊工具列與抽屜外部區域時自動收合抽屜
+    registerEventListener(document, "click", (e) => {
+      if (!resources.activeDrawer || suppressDrawerAutoClose) return;
+      const target = e.target;
+      if (panel.contains(target)) return;
+      const activeEl = resources.drawerContainers?.[resources.activeDrawer];
+      if (activeEl && activeEl.contains(target)) return;
+      closeAllDrawers();
+    });
+
     document.body.appendChild(panel);
     resources.panel = panel;
     state.panelCreated = true;
@@ -2453,6 +2750,7 @@
   function setPanelVisibility(visible) {
     if (!resources.panel?.isConnected) return;
     resources.panel.style.display = visible ? "flex" : "none";
+    if (!visible) closeAllDrawers();
   }
   function adjustColumnCount(change) {
     state.settings.columns = Math.max(1, state.settings.columns + change);
@@ -2465,7 +2763,7 @@
     if (state.buttons.height) applyMultiColumnCSS();
   }
   function adjustExpandWidth(change) {
-    state.settings.expandWidth = Math.max(20, Math.min(100, state.settings.expandWidth + change));
+    state.settings.expandWidth = Math.max(10, Math.min(100, state.settings.expandWidth + change));
     GM_setValue("expandWidth", state.settings.expandWidth);
     if (state.buttons.expandWidth) applyMultiColumnCSS();
   }
@@ -2475,9 +2773,9 @@
     updatePadLabel();
   }
   function adjustVolume(change) {
-    state.settings.volume = Math.round(Math.min(1, Math.max(0, state.settings.volume + change)) * 100) / 100;
+    state.settings.volume = Math.max(0, Math.min(1, Math.round((state.settings.volume + change) * 10) / 10));
     GM_setValue("volume", state.settings.volume);
-    if (state.isActivePage && state.buttons.volume) processAllVideos();
+    if (state.buttons.volume) processAllVideos();
   }
 
   /* === MODULE: src/main.js === */
@@ -2638,6 +2936,12 @@
     resources.observers.nav = null;
     if (resources.panel?.isConnected) resources.panel.remove();
     resources.panel = null;
+    for (const drawer of Object.values(resources.drawerContainers || {})) {
+      if (drawer?.isConnected) drawer.remove();
+    }
+    resources.drawerContainers = {};
+    resources.drawerTriggers = {};
+    resources.activeDrawer = null;
     if (resources.settingsModal?.isConnected) resources.settingsModal.remove();
     resources.settingsModal = null;
     resources.settingsBtn = null;
@@ -2686,10 +2990,13 @@
     registerEventListener(window, "scroll", markScroll, { passive: true, capture: true });
     if (HAS_SCROLL_END) registerEventListener(window, "scrollend", markScrollEnd, { passive: true, capture: true });
     registerEventListener(document, "mouseover", handleMouseOver, { passive: true });
+    registerEventListener(document, "pointermove", handleHoverVideoPointerMove, { passive: true });
     registerEventListener(document, "click", onClick, { passive: true });
+    registerEventListener(document, "click", handleHoverVideoClick, { passive: true });
     registerEventListener(document, "click", handleLinkClickSanitize, { capture: true });
     registerEventListener(document, "keydown", handleCommentSortHotkey);
     registerEventListener(document, "play", handleVideoPlay, { passive: true, capture: true });
+    registerEventListener(document, "play", handleHoverVideoPlay, { capture: true });
     registerEventListener(document, "play", handleReelVideoEvent, { passive: true, capture: true });
     registerEventListener(document, "pause", handleReelVideoEvent, { passive: true, capture: true });
     registerEventListener(document, "ended", handleReelVideoEvent, { passive: true, capture: true });

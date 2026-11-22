@@ -72,11 +72,14 @@ const TEST_HTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- 模擬未登入訪客登入牆 -->
-  <div role="dialog" id="guest-login-wall">
-    <div>登入 Facebook 查看 Facebook 上的更多內容</div>
-    <input type="text" name="email" />
-    <input type="password" name="pass" />
+  <!-- 模擬未登入訪客雙層登入牆（含全螢幕白霧 Backdrop） -->
+  <div id="guest-login-backdrop-wrapper" style="position:fixed;inset:0;width:100vw;height:100vh;background:rgba(244,244,244,0.82);z-index:5000;">
+    <div id="guest-login-fog-sibling" style="position:fixed;inset:0;width:100vw;height:100vh;background:rgba(255,255,255,0.75);"></div>
+    <div role="dialog" id="guest-login-wall">
+      <div>登入 Facebook 查看 Facebook 上的更多內容</div>
+      <input type="text" name="email" />
+      <input type="password" name="pass" />
+    </div>
   </div>
 
   <!-- 模擬貼文留言燈箱 -->
@@ -122,12 +125,13 @@ function runStaticAudits(bundleCode) {
   assert.ok(!/\bXMLHttpRequest\b/.test(bundleCode), "嚴禁外部 XMLHttpRequest");
   console.log("  [PASS] 零外部網路權限與零外連 API 審計通過");
 
-  // 3. 淺色系視覺規範與舊暗黑寫法零殘留 + 無多餘配色代稱字眼
+  // 3. 淺色系視覺規範、舊暗黑與不安全硬改 muted 零殘留
   assert.ok(!bundleCode.includes("rgba(10,14,24"), "工具列舊暗黑背景殘留");
   assert.ok(!bundleCode.includes('backgroundColor: "#000000"'), "小按鈕純黑背景殘留");
   assert.ok(bundleCode.includes("#F7F8FA") && bundleCode.includes("#6B8E9F") && bundleCode.includes("#7D9D8B"), "缺少淺色系標準色票");
   assert.ok(!/莫蘭迪|莫兰迪|Morandi/i.test(bundleCode), "腳本產物不應包含多餘配色代稱字眼");
-  console.log("  [PASS] 淺色視覺規範、舊暗黑零殘留與無多餘字眼通過");
+  assert.ok(!/\.muted\s*=\s*false/.test(bundleCode), "嚴禁直接覆寫 video.muted = false 以免凍死 FB Reels 播放器");
+  console.log("  [PASS] 淺色視覺規範、舊暗黑零殘留、零硬改 muted 與無多餘字眼通過");
 
   // 4. "||" 假資料保底語法掃描
   const orMatches = bundleCode.match(/\|\|\s*['"][^'"]+['"]/g) || [];
@@ -267,7 +271,7 @@ async function main() {
     console.log(`  Viewport     : ${viewport.w}x${viewport.h} @ DPR ${viewport.dpr}`);
 
     await cdp.eval(`
-      window.__gmStore = new Map();
+      window.__gmStore = new Map([["volumeEnabled", true]]);
       window.GM_getValue = (k, d) => window.__gmStore.has(k) ? window.__gmStore.get(k) : d;
       window.GM_setValue = (k, v) => { window.__gmStore.set(k, v); };
       window.unsafeWindow = window;
@@ -279,6 +283,74 @@ async function main() {
     await sleep(300);
 
     console.log("\n=== [2] 端到端垂直實體驗收 (Real Blink DOM & Computed Style) ===");
+
+    // --- W8 + W9 + W10: 精簡 4 類橫拉抽屜閉環、🔊 原生靜音聯動與動態牆影片懸浮播放 ---
+    const w8910 = await cdp.eval(`(() => {
+      const dockBtns = document.querySelectorAll("#ffe-dock > button").length;
+      // 開啟 layout 抽屜
+      document.getElementById("ffe-cat-layout").click();
+      const layoutOpen = getComputedStyle(document.getElementById("ffe-drawer-layout")).display;
+      // 互斥切換至 media 抽屜
+      document.getElementById("ffe-cat-media").click();
+      const layoutAfterSwitch = getComputedStyle(document.getElementById("ffe-drawer-layout")).display;
+      const mediaOpen = getComputedStyle(document.getElementById("ffe-drawer-media")).display;
+
+      // 在頁面放一顆 FB 原生喇叭鈕驗證 🔊 聯動
+      const nativeMuteBtn = document.createElement("div");
+      nativeMuteBtn.setAttribute("role", "button");
+      nativeMuteBtn.setAttribute("aria-label", "靜音");
+      nativeMuteBtn.style.cssText = "position:fixed;top:20px;right:20px;width:30px;height:30px;";
+      let nativeClicks = [];
+      nativeMuteBtn.addEventListener("click", () => {
+        const cur = nativeMuteBtn.getAttribute("aria-label");
+        nativeClicks.push(cur);
+        nativeMuteBtn.setAttribute("aria-label", cur === "靜音" ? "取消靜音" : "靜音");
+      });
+      document.body.appendChild(nativeMuteBtn);
+
+      // 初始 volumeEnabled=true，點一次 🔊 關閉 -> 應點擊原生「靜音」鈕；再點一次開啟 -> 應點擊原生「取消靜音」鈕
+      document.getElementById("ffe-btn-volume").click();
+      document.getElementById("ffe-btn-volume").click();
+      nativeMuteBtn.remove();
+
+      // W10: 開啟「動態牆影片懸浮播放」並測試預設暫停 / 懸浮播放 / 移開暫停
+      document.getElementById("ffe-btn-hover-play").click();
+      const feedVid = document.createElement("video");
+      feedVid.id = "test-feed-hover-vid";
+      let playCount = 0;
+      let pauseCount = 0;
+      let isPaused = false;
+      Object.defineProperty(feedVid, "paused", { get: () => isPaused });
+      feedVid.play = () => { playCount++; isPaused = false; return Promise.resolve(); };
+      feedVid.pause = () => { pauseCount++; isPaused = true; };
+      document.getElementById("post-normal").appendChild(feedVid);
+
+      // 模擬未懸浮時 FB 自動觸發 play -> 應立即被 pause 攔截
+      feedVid.dispatchEvent(new Event("play", { bubbles: false }));
+      const pausedOnAutoplay = isPaused;
+      // 滑鼠移入影片 -> 應觸發 play
+      feedVid.dispatchEvent(new Event("pointermove", { bubbles: true }));
+      const playingOnHover = !isPaused;
+      // 滑鼠移出到主頁背景 -> 應觸發 pause
+      document.body.dispatchEvent(new Event("pointermove", { bubbles: true }));
+      const pausedOnLeave = isPaused;
+
+      feedVid.remove();
+      // 關閉抽屜
+      document.getElementById("ffe-cat-media").click();
+      const mediaClosed = getComputedStyle(document.getElementById("ffe-drawer-media")).display;
+      return { dockBtns, layoutOpen, layoutAfterSwitch, mediaOpen, mediaClosed, nativeClicks, pausedOnAutoplay, playingOnHover, pausedOnLeave, playCount, pauseCount };
+    })()`);
+    assert.equal(w8910.dockBtns, 4, "左側主工具列應精簡為 4 顆縱向分類按鈕");
+    assert.equal(w8910.layoutOpen, "flex", "點擊 🗂️ 應橫向展開版面抽屜");
+    assert.equal(w8910.layoutAfterSwitch, "none", "切換至 🎬 時應互斥收合版面抽屜");
+    assert.equal(w8910.mediaOpen, "flex", "點擊 🎬 應橫向展開影片媒體抽屜");
+    assert.equal(w8910.mediaClosed, "none", "再點一次 🎬 應收合抽屜");
+    assert.deepEqual(w8910.nativeClicks, ["靜音", "取消靜音"], "🔊 開關應精準聯動 FB 原生靜音與取消靜音按鈕");
+    assert.equal(w8910.pausedOnAutoplay, true, "開啟懸浮播放後，未懸浮之自動播放應被暫停");
+    assert.equal(w8910.playingOnHover, true, "滑鼠移入 Feed 影片時應觸發播放");
+    assert.equal(w8910.pausedOnLeave, true, "滑鼠移開 Feed 影片後應自動暫停");
+    console.log(`  [PASS] W8/W9/W10 4 類橫拉抽屜 (dock=${w8910.dockBtns})、🔊 原生聯動 (${JSON.stringify(w8910.nativeClicks)}) 與懸浮播放 (autoPause=${w8910.pausedOnAutoplay}, hoverPlay=${w8910.playingOnHover}, leavePause=${w8910.pausedOnLeave})`);
 
     // --- W1 + W2: 工具列與 ⚙️ 設定彈窗三聯斷言 + 閉環 + 英文語系自動切換 ---
     const modalCycle = await cdp.eval(`(async () => {
@@ -322,20 +394,29 @@ async function main() {
     assert.equal(modalCycle.enDoneText, "Done & Close", "英文語系按鈕文字不符");
     console.log(`  [PASS] W2 ⚙️ 設定彈窗三聯斷言、閉環與中英雙語切換 (bg=${modalCycle.cardBg}, zh="${modalCycle.zhTitle}", en="${modalCycle.enTitle}")`);
 
-    // --- W6: 訪客去登入牆 + 捲動解鎖 + 外連網址淨化 ---
+    // --- W6: 訪客去登入牆（含外層白霧 Backdrop） + 捲動解鎖 + 外連網址淨化 ---
     const w6Result = await cdp.eval(`(() => {
       const wall = document.getElementById("guest-login-wall");
+      const wrapper = document.getElementById("guest-login-backdrop-wrapper");
+      const fog = document.getElementById("guest-login-fog-sibling");
       const wallDisplay = getComputedStyle(wall).display;
+      const wrapperDisplay = getComputedStyle(wrapper).display;
+      const fogDisplay = getComputedStyle(fog).display;
+      const centerHit = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+      const centerBlockedByFog = !!(centerHit && (centerHit.id === "guest-login-backdrop-wrapper" || centerHit.id === "guest-login-fog-sibling"));
       const bodyOverflow = document.body.style.overflow;
       const href1 = document.getElementById("ext-link-1").getAttribute("href");
       const href2 = document.getElementById("ext-link-2").getAttribute("href");
-      return { wallDisplay, bodyOverflow, href1, href2 };
+      return { wallDisplay, wrapperDisplay, fogDisplay, centerBlockedByFog, bodyOverflow, href1, href2 };
     })()`);
     assert.equal(w6Result.wallDisplay, "none", "訪客登入牆應被自動隱藏");
+    assert.equal(w6Result.wrapperDisplay, "none", "外層白霧遮罩父容器應被自動隱藏");
+    assert.equal(w6Result.fogDisplay, "none", "同層無文字白霧遮罩兄弟節點應被自動隱藏");
+    assert.equal(w6Result.centerBlockedByFog, false, "畫面中心不應被白霧遮罩攔截點擊");
     assert.equal(w6Result.bodyOverflow, "auto", "訪客模式 body overflow 應解鎖為 auto");
     assert.equal(w6Result.href1, "https://example.com/article?id=42", "l.facebook.com 跳轉與 fbclid 應完全淨化");
     assert.equal(w6Result.href2, "https://example.org/news?page=2", "直接外連之 fbclid 與 __cft__ 應完全移除");
-    console.log(`  [PASS] W6 訪客去登入牆 (display=${w6Result.wallDisplay}, overflow=${w6Result.bodyOverflow}) 與外連淨化 (${w6Result.href1})`);
+    console.log(`  [PASS] W6 訪客去登入牆與去白霧 (wall=${w6Result.wallDisplay}, backdrop=${w6Result.wrapperDisplay}, fog=${w6Result.fogDisplay}, overflow=${w6Result.bodyOverflow}) 與外連淨化 (${w6Result.href1})`);
 
     // --- W5: 介面深度乾淨化 CSS ---
     const w5Result = await cdp.eval(`(() => {

@@ -17,6 +17,7 @@ const MODULE_ORDER = [
   "modules/login_wall.js",
   "modules/link_sanitizer.js",
   "modules/reels_title_hide.js",
+  "modules/hover_video.js",
   "modules/content_filter.js",
   "modules/comments_control.js",
   "modules/feed_engine.js",
