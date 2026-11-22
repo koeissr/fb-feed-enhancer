@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.1 (2026-11-22)
+
+### Changed
+- 補強 Userscript.Zone 與 Greasy Fork 檢索覆蓋：將主名稱 `@name` 補齊完整關鍵字 `Facebook`（`Facebook Feed Enhancer (FB Cleaner, Multi-Column & Reels)`），並新增 `@match https://web.facebook.com/*` 網域支援。
+- 同步更新雙語 `README.md` 完整收錄 v2.0 莫蘭迪設定彈窗、Reels 隱藏標題、介面深度淨化、訪客去登入牆、外連淨化、留言排序快捷鍵與關鍵字黑名單說明。
+
 ## v2.0.0 (2026-11-22)
 
 ### Added

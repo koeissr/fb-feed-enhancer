@@ -113,7 +113,7 @@
     h2.textContent = "⚙️ FB 動態牆增強器 — 進階設定";
     const sub = document.createElement("div");
     sub.className = "ffe-modal-subtitle";
-    sub.textContent = "v2.0.0 莫蘭迪控制中心｜所有設定即時生效並自動儲存";
+    sub.textContent = "v2.0.1 莫蘭迪控制中心｜所有設定即時生效並自動儲存";
     titleWrap.appendChild(h2);
     titleWrap.appendChild(sub);
 

@@ -1,4 +1,4 @@
-# FB Feed Enhancer / FB 動態牆增強器
+# Facebook Feed Enhancer / FB 動態牆增強器 (Facebook 淨化與多欄)
 
 **[繁體中文](#繁體中文) | [English](#english)**
 
@@ -7,25 +7,26 @@
 <a id="繁體中文"></a>
 ## 繁體中文
 
-一款專為 Facebook 電腦版打造的 Tampermonkey / Violentmonkey 使用者腳本（約 66 KB），完整支援中英文 Facebook 介面，整合**多欄排版**、**防回捲空白修復**、**防切分頁自動重新整理**、**預設切換所有留言**、**安全版自動展開留言**與**自動隱藏廣告／推薦貼文**。
+一款專為 Facebook 電腦版（`www.facebook.com` / `web.facebook.com`）打造的 Tampermonkey / Violentmonkey 全方位淨化與增強腳本（零外部網路權限、模組化源碼建置單檔），完整支援中英文介面，整合**多欄排版與防回捲修復**、**莫蘭迪 ⚙️ 進階設定彈窗**、**防切分頁自動重整**、**所有／最新留言切換與快捷鍵**、**Reels 播放隱藏標題**、**介面深度乾淨化**、**訪客去登入牆與捲動解鎖**、**外連網址淨化**、**廣告／Meta AI／推薦區塊與關鍵字黑名單過濾**。
 
-> 本專案改編自 [Dxzy](https://greasyfork.org/scripts/535843) 的 **Facebook Worker's Wisdom DX**（MIT License），針對 2026 年新版 Facebook 介面進行異常修復與功能整合。
+> 本專案改編自 [Dxzy](https://greasyfork.org/scripts/535843) 的 **Facebook Worker's Wisdom DX**（MIT License），針對 2026 年新版 Facebook 介面進行模組化重構、異常修復與多項實戰功能整合。
 
 ### 一鍵安裝
 
 1. 先於瀏覽器安裝 [Tampermonkey](https://www.tampermonkey.net/) 或 [Violentmonkey](https://violentmonkey.github.io/)。
 2. 任選以下來源一鍵安裝（支援自動更新）：
    - 👉 **[GitHub Raw 一鍵安裝](https://raw.githubusercontent.com/koeissr/fb-feed-enhancer/main/fb-feed-enhancer.user.js)**
-   - 👉 **[Greasy Fork 腳本頁](https://greasyfork.org/zh-TW)**（搜尋 `FB Feed Enhancer`）
+   - 👉 **[Greasy Fork 腳本頁](https://greasyfork.org/zh-TW)**（搜尋 `Facebook Feed Enhancer` 或 `FB 動態牆增強器`）
 
-### 工具列功能對照
+### 左側工具列功能對照
 
 | 圖示 | 功能名稱 | 說明 |
 | :---: | :--- | :--- |
+| **⚙️** | **莫蘭迪進階設定彈窗** | 統一管理所有淨化與進階選項（Reels 隱藏標題、介面深度乾淨化、去登入牆、外連淨化、留言排序偏好、Meta AI／PYMK／關鍵字黑名單、一鍵重置） |
 | **📐** | 側欄收縮 | 收合左側導覽欄，釋放更多橫向瀏覽空間 |
 | **🔒** | 防止自動重新整理 | 攔截切換分頁回來時 FB 首頁觸發的自動重整（不影響手動按 F5） |
-| **📋** | 預設切換「所有留言」 | 於貼文燈箱或單一貼文頁自動將「最相關／Most relevant」切換為「所有留言／All comments」（每篇最多觸發一次） |
-| **🗂️** | 多欄佈局（含防回捲空白修復） | 自訂欄數（`−`/`+`），移除干擾 FB 虛擬捲動的 CSS `contain`，保護虛擬化佔位空殼不被截斷 |
+| **📋** | 留言排序自動切換 | 於貼文燈箱或單一貼文頁自動切換為「所有留言」或「最新留言」（可於 `⚙️` 設定偏好，燈箱內按 `Insert` 觸發、`Ctrl+Insert` 反轉切換） |
+| **🗂️** | 多欄佈局（含防回捲修復） | 自訂欄數（`−`/`+`），移除干擾 FB 虛擬捲動的 CSS `contain`，保護虛擬化佔位空殼不被截斷 |
 | **💬** | 安全版自動展開留言 | 僅限於貼文燈箱（`[role="dialog"]`）或單一貼文頁內自動展開留言／摺疊回覆／查看更多留言，杜絕首頁誤彈貼文燈箱 |
 | **📖** | 貼文自動展開查看更多 | 自動展開被折疊的長貼文內容（單次點擊不重複折疊） |
 | **🚫** | 自動隱藏廣告與推薦貼文 | 每 4 秒自動偵測並點擊隱藏廣告與推薦貼文 |
@@ -34,14 +35,30 @@
 | **🔊** | 影片音量控制 | 統一覆蓋並調整 FB 影片預設音量 |
 | **↕️ / ↔️** | 高度控制 / 展開寬度 | 自訂貼文卡片最大高度（`vh`）與展開寬度比例 |
 
+### ⚙️ 進階設定彈窗整合功能（v2.0+）
+- **Reels 播放時自動隱藏標題遮罩**：播放連續短片時自動淡出底部標題文字，暫停或滑鼠懸停時恢復。
+- **介面深度乾淨化**：獨立 CSS 開關隱藏右側欄（贊助／聯絡人／群聊）、頂部「商店」頁籤、左側欄頁尾條款、首頁限時動態與 Reels 推薦區塊（不依賴多欄模式）。
+- **訪客模式去登入牆 & 捲動解鎖**：未登入瀏覽公開貼文時隱藏強制登入彈窗並解鎖 `overflow` 捲動。
+- **外連網址淨化（Link Sanitizer）**：自動展開 `l.facebook.com/l.php?u=...` 跳轉連結並移除 `fbclid`、`__cft__`、`__tn__` 等追蹤參數。
+- **內容淨化與關鍵字黑名單**：非破壞式（保護虛擬捲動）隱藏 Meta AI 卡片、「你可能認識的人」及命中自訂關鍵字之貼文。
+
+### 開發與建置（零外部相依）
+```bash
+# 從 src/ 14 個模組建置根目錄單檔 fb-feed-enhancer.user.js
+node scripts/build.mjs
+
+# 執行真實 Chrome Headless CDP 無 Mock 端到端實體驗收
+node scripts/real_physical_verification_v2.mjs
+```
+
 ---
 
 <a id="english"></a>
 ## English
 
-A lightweight (~66 KB) Tampermonkey / Violentmonkey userscript for desktop Facebook, fully compatible with both **English and Chinese Facebook UIs**. It combines **multi-column feed layout**, **virtualization scroll-back fix**, **anti-auto-refresh on tab switch**, **default to All Comments**, **safe comment auto-expand**, and **automatic ad / suggested post hiding**.
+An all-in-one desktop **Facebook Cleaner & Feed Enhancer** userscript (`www.facebook.com` & `web.facebook.com`) for Tampermonkey / Violentmonkey, built from modular source files with **zero external network permissions** (`GM_setValue`, `GM_getValue`, `unsafeWindow` only). Fully compatible with both **English and Chinese Facebook UIs**.
 
-> Based on **Facebook Worker's Wisdom DX** by [Dxzy](https://greasyfork.org/scripts/535843) (MIT License), enhanced with bug fixes and integrated quality-of-life modules for the 2026 Facebook desktop interface.
+> Based on **Facebook Worker's Wisdom DX** by [Dxzy](https://greasyfork.org/scripts/535843) (MIT License), refactored into a modular architecture with bug fixes and integrated quality-of-life features for the 2026 Facebook desktop interface.
 
 ### One-Click Installation
 
@@ -49,25 +66,25 @@ A lightweight (~66 KB) Tampermonkey / Violentmonkey userscript for desktop Faceb
 2. Click below to install with automatic updates enabled:
    - 👉 **[Install via GitHub Raw](https://raw.githubusercontent.com/koeissr/fb-feed-enhancer/main/fb-feed-enhancer.user.js)**
 
-### Toolbar Features
+### Key Features
 
-| Icon | Feature | Description |
-| :---: | :--- | :--- |
-| **📐** | Toggle Sidebar | Collapses the left navigation sidebar to maximize feed width |
-| **🔒** | Prevent Auto-Refresh | Blocks Facebook's tab-switch `visibilitychange` home feed reload without interfering with manual refresh (F5) |
-| **📋** | Default to All Comments | Automatically switches comment sorting from "Most relevant" / "Top comments" to "All comments" inside post dialogs or single-post pages (runs at most once per post) |
-| **🗂️** | Multi-Column Layout + Scroll Fix | Customizable column count (`−`/`+`); removes CSS `contain` rules that conflict with Facebook DOM virtualization and prevents empty virtualized spacers from being clipped |
-| **💬** | Safe Comment Auto-Expand | Automatically expands comments, collapsed replies, and "View more comments" **strictly inside post dialogs (`[role="dialog"]`) or single-post pages**, preventing accidental modal popups on the home feed |
-| **📖** | Auto-Expand "See More" | Automatically expands truncated post text (single click, never collapses back) |
-| **🚫** | Auto-Hide Ads & Suggested Posts | Detects and clicks the hide button on sponsored and suggested posts every 4 seconds |
-| **❤️ / 👍** | Hover Like / Scheduled Auto-Like | Hover-to-like comments/posts or auto-like organic posts every 4 seconds (ads excluded) |
-| **🎯** | Hover Trigger Pad | Adjusts hover detection radius (`px`) for posts |
-| **🔊** | Video Volume Control | Overrides and standardizes Facebook video volume |
-| **↕️ / ↔️** | Post Height / Expand Width | Customizes max post card height (`vh`) and expanded width percentage |
+- **⚙️ Morandi Advanced Settings Modal**: Clean light-toned settings panel consolidating all cleaners, filters, comment sort preference, keyword blacklist, and one-click reset.
+- **🗂️ Multi-Column Layout + Virtualization Scroll Fix**: Customizable column count, max card height (`vh`), and width controls without clipping Facebook virtualized spacers.
+- **🔒 Prevent Auto-Refresh on Tab Switch**: Blocks Facebook's `visibilitychange` home feed reload without interfering with manual refresh (F5).
+- **📋 All / Newest Comments + Hotkeys**: Automatically switches comment sorting to **All comments** or **Newest** inside post dialogs and single-post pages; press `Insert` to trigger preferred sort or `Ctrl+Insert` to toggle between All and Newest.
+- **💬 Safe Comment Auto-Expand**: Expands comments, collapsed replies, and "View more comments" strictly inside `[role="dialog"]` or single-post pages.
+- **🎬 Reels Title Auto-Hide**: Fades out Reels title overlays during playback and restores them on pause or hover.
+- **🧹 Deep UI Cleaner**: Independently hide Right Rail (Sponsored / Contacts / Group chats), Marketplace nav tab, left sidebar footer, and Stories / Reels shelves.
+- **🔓 Guest Login-Wall Bypass & Scroll Unlock**: Removes forced login overlays and restores page scrolling when browsing public Facebook pages logged out.
+- **🔗 Link Sanitizer**: Unwraps `l.facebook.com/l.php?u=...` redirects and strips `fbclid`, `__cft__`, and tracking parameters.
+- **🚫 Ad, Meta AI, PYMK & Keyword Blacklist Filter**: Automatically hides Sponsored/Suggested posts, Meta AI prompts, "People you may know" cards, and posts matching custom keywords without breaking virtual scrolling.
 
----
+### Build & Verification (Zero Dependencies)
+```bash
+node scripts/build.mjs
+node scripts/real_physical_verification_v2.mjs
+```
 
-## License & Credits
+### License
 
-- Released under the **[MIT License](LICENSE)**.
-- Original foundation by **Dxzy** (*Facebook Worker's Wisdom DX*, MIT License).
+MIT License — see [LICENSE](LICENSE).

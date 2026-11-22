@@ -255,6 +255,12 @@ async function main() {
     await cdp.send("Runtime.enable");
     await cdp.send("Page.enable");
 
+    // 等待頁面完全載入避免導覽競態
+    for (let i = 0; i < 20; i++) {
+      const ready = await cdp.eval(`document.readyState`);
+      if (ready === "complete") break;
+      await sleep(100);
+    }
     // 確認 Viewport 與注入 Userscript 儲存介面（真實記憶體 Map，非業務邏輯 Mock）
     const viewport = await cdp.eval(`({ w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio })`);
     console.log(`  Viewport     : ${viewport.w}x${viewport.h} @ DPR ${viewport.dpr}`);
