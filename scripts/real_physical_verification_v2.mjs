@@ -520,6 +520,55 @@ async function main() {
     assert.notEqual(w7Result.afterReset.keyword, "none", "重置後關鍵字貼文應恢復");
     console.log(`  [PASS] W7 內容過濾與關鍵字黑名單 (normal=${w7Result.filtered.normal}, filtered=[metaAI/pymk/kw]=none -> reset restored)`);
 
+    // --- W11: 擴大虛擬化緩衝區 (IntersectionObserver rootMargin >= 2200px) ---
+    const w11Result = await cdp.eval(`(() => {
+      const io = new IntersectionObserver(() => {}, { root: null, rootMargin: "100px 0px" });
+      const wrapped = !!window.IntersectionObserver.__ffeWrapped;
+      const rootMargin = io.rootMargin;
+      io.disconnect();
+      return { wrapped, rootMargin };
+    })()`);
+    assert.equal(w11Result.wrapped, true, "IntersectionObserver 應已掛載虛擬化緩衝區擴增鉤子");
+    assert.ok(w11Result.rootMargin.includes("2200px"), `rootMargin 應擴大至 2200px，實測為 ${w11Result.rootMargin}`);
+    console.log(`  [PASS] W11 4 欄虛擬化緩衝區擴增 (wrapped=${w11Result.wrapped}, rootMargin="${w11Result.rootMargin}")`);
+
+    // --- W12: 版面即時數值標籤、移除 ↔️、統一倍速 ⏩、快捷鍵 [/] & →、Reels 播完暫停 ---
+    const w12Result = await cdp.eval(`(() => {
+      const hasExpandWidthBtn = !!document.querySelector('[data-ffe-btn="expandWidth"]');
+      const colLabel = document.getElementById("ffe-label-columns")?.textContent;
+      const heightLabel = document.getElementById("ffe-label-height")?.textContent;
+      const volLabel = document.getElementById("ffe-label-volume")?.textContent;
+      const speedLabelInit = document.getElementById("ffe-label-speed")?.textContent;
+
+      // 測試倍速快捷鍵 ']' (+0.25x) 與影片 playbackRate 套用
+      const reelVid = document.getElementById("reel-video");
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "]", bubbles: true }));
+      const speedLabelAfter = document.getElementById("ffe-label-speed")?.textContent;
+      const vidRate = reelVid.playbackRate;
+
+      // 測試 Reels 播完自動暫停 (開啟 🔁 後於接近結尾觸發 timeupdate)
+      document.getElementById("ffe-btn-reel-pause").click();
+      let pausedAtEnd = false;
+      Object.defineProperty(reelVid, "duration", { configurable: true, get: () => 10 });
+      Object.defineProperty(reelVid, "currentTime", { configurable: true, get: () => 9.9, set: () => {} });
+      Object.defineProperty(reelVid, "paused", { configurable: true, get: () => pausedAtEnd });
+      reelVid.pause = () => { pausedAtEnd = true; };
+      reelVid.dispatchEvent(new Event("timeupdate", { bubbles: false }));
+
+      const hasPipBtn = !!document.getElementById("ffe-btn-pip");
+      return { hasExpandWidthBtn, colLabel, heightLabel, volLabel, speedLabelInit, speedLabelAfter, vidRate, pausedAtEnd, hasPipBtn };
+    })()`);
+    assert.equal(w12Result.hasExpandWidthBtn, false, "無感的 ↔️ 展開寬度按鈕應已徹底移除");
+    assert.equal(w12Result.colLabel, "4欄", "欄數即時標籤應顯示 4欄");
+    assert.equal(w12Result.heightLabel, "80vh", "高度即時標籤應顯示 80vh");
+    assert.equal(w12Result.volLabel, "20%", "音量即時標籤應顯示 20%");
+    assert.equal(w12Result.speedLabelInit, "1.0x", "倍速初始標籤應顯示 1.0x");
+    assert.equal(w12Result.speedLabelAfter, "1.25x", "按下 ] 快捷鍵後倍速應升至 1.25x");
+    assert.equal(w12Result.vidRate, 1.25, "影片 playbackRate 應實質更新為 1.25");
+    assert.equal(w12Result.pausedAtEnd, true, "開啟 Reels 播完暫停後，接近結尾應自動暫停");
+    assert.equal(w12Result.hasPipBtn, true, "應存在 🖼️ 一鍵子母畫面按鈕");
+    console.log(`  [PASS] W12 版面數值標籤 (${w12Result.colLabel}/${w12Result.heightLabel}/${w12Result.volLabel})、倍速快捷鍵 (${w12Result.speedLabelInit}->${w12Result.speedLabelAfter})、PiP 與 Reels 播完暫停`);
+
     // --- 瀏覽器 Console 零 Uncaught Error 審計 ---
     assert.equal(cdp.exceptions.length, 0, `瀏覽器出現 Uncaught Exception: ${cdp.exceptions.join("; ")}`);
     console.log("  [PASS] 瀏覽器 DevTools Runtime 零 Uncaught Exception");

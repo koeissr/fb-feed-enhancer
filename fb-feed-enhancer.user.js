@@ -4,7 +4,7 @@
 // @name:zh-TW   FB 動態牆增強器 (Facebook 淨化與多欄)
 // @name:zh-CN   FB 动态墙增强器 (Facebook 净化与多栏)
 // @namespace    https://github.com/koeissr/fb-feed-enhancer
-// @version      2.1.0
+// @version      2.2.0
 // @description  Facebook Cleaner & Feed Enhancer: Compact flyout drawer toolbar, multi-column layout with virtualization scroll fix, Feed hover-to-play video, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall & transparent overlay bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:en     Facebook Cleaner & Feed Enhancer: Compact flyout drawer toolbar, multi-column layout with virtualization scroll fix, Feed hover-to-play video, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall & transparent overlay bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:zh-TW  Facebook 淨化與動態牆增強器：精簡分類橫拉抽屜工具列、多欄化樣式（防回捲修復）、動態牆影片懸浮播放、雙語進階設定彈窗、防切分頁重整、所有/最新留言切換與快捷鍵、Reels 播放隱藏標題、介面深度淨化、訪客去登入牆與透明遮罩、外連網址淨化、Meta AI/推薦區塊與關鍵字黑名單過濾。改編自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
@@ -166,12 +166,15 @@
       preventRefresh: GM_getValue("preventRefreshEnabled", true),
       allComments: GM_getValue("allCommentsEnabled", true),
       volume: GM_getValue("volumeEnabled", false),
+      speed: GM_getValue("speedEnabled", false),
+      videoHotkeys: GM_getValue("videoHotkeysEnabled", true),
+      reelPauseOnEnd: GM_getValue("reelPauseOnEndEnabled", false),
       columns: GM_getValue("columnsEnabled", false),
       height: GM_getValue("heightEnabled", false),
-      expandWidth: GM_getValue("expandWidthEnabled", false),
       hoverPad: GM_getValue("hoverPadEnabled", true),
       reelsTitleHide: GM_getValue("reelsTitleHideEnabled", true),
       hoverPlayVideo: GM_getValue("hoverPlayVideoEnabled", false),
+      expandVirtualBuffer: GM_getValue("expandVirtualBufferEnabled", true),
       cleanRightRail: GM_getValue("cleanRightRailEnabled", false),
       cleanMarketplaceTab: GM_getValue("cleanMarketplaceTabEnabled", false),
       cleanLeftFooter: GM_getValue("cleanLeftFooterEnabled", true),
@@ -184,9 +187,9 @@
     },
     settings: {
       volume: GM_getValue("volume", CONFIG.DEFAULT_VOLUME),
+      playbackRate: GM_getValue("playbackRate", 1.0),
       columns: GM_getValue("columnCount", CONFIG.COLUMN_COUNT),
       maxHeight: GM_getValue("maxHeight", CONFIG.DEFAULT_MAX_HEIGHT),
-      expandWidth: GM_getValue("expandWidth", CONFIG.DEFAULT_EXPAND_WIDTH),
       hoverPad: GM_getValue("hoverPad", CONFIG.DEFAULT_HOVER_PAD),
       commentSortMode: GM_getValue("commentSortMode", "all"),
       keywordBlacklist: GM_getValue("keywordBlacklist", ""),
@@ -223,6 +226,10 @@
     settingsBtn: null,
     padBtn: null,
     padLabel: null,
+    colLabel: null,
+    heightLabel: null,
+    volLabel: null,
+    speedLabel: null,
     likeBtn: null,
     expandBtn: null,
     videos: new Set(),
@@ -652,6 +659,97 @@
       level++;
     }
     return false;
+  }
+
+  /* === MODULE: src/modules/scroll_recovery.js === */
+  let ioHookInstalled = false;
+  let internalIOCreating = false;
+  let lastRecoveryScrollY = 0;
+  let lastWakeAt = -1e9;
+  let wakeTimer = 0;
+
+  function parseVerticalMarginPx(rootMargin) {
+    if (!rootMargin || typeof rootMargin !== "string") return 0;
+    const parts = rootMargin.trim().split(/\s+/);
+    const first = parts.length > 0 ? parts[0] : "";
+    if (!first) return 0;
+    const match = /^(-?\d+(?:\.\d+)?)px$/i.exec(first);
+    return match ? parseFloat(match[1]) : 0;
+  }
+
+  function installVirtualBufferHook() {
+    if (ioHookInstalled || !state.buttons.expandVirtualBuffer) return;
+    const targetWin = pageWindow || window;
+    const NativeIO = targetWin.IntersectionObserver;
+    if (typeof NativeIO !== "function") return;
+    ioHookInstalled = true;
+
+    const BUFFER_PX = 2200;
+    const WrappedIO = function (callback, options) {
+      if (!internalIOCreating && state.buttons.expandVirtualBuffer && (!options || !options.root)) {
+        const nextOpts = options ? Object.assign({}, options) : {};
+        const curVertical = parseVerticalMarginPx(nextOpts.rootMargin);
+        if (curVertical < BUFFER_PX) {
+          nextOpts.rootMargin = `${BUFFER_PX}px 0px ${BUFFER_PX}px 0px`;
+        }
+        return new NativeIO(callback, nextOpts);
+      }
+      return new NativeIO(callback, options);
+    };
+    WrappedIO.prototype = NativeIO.prototype;
+    try {
+      Object.defineProperty(WrappedIO, "__ffeWrapped", { value: true });
+      targetWin.IntersectionObserver = WrappedIO;
+      if (window !== targetWin) window.IntersectionObserver = WrappedIO;
+    } catch {}
+  }
+
+  function hasBlankVirtualizedCardInViewport() {
+    if (!state.isActivePage || !state.buttons.columns || !document.body) return false;
+    const items = document.querySelectorAll(CONFIG.FLEX_ITEM_SELECTOR);
+    const vh = window.innerHeight || 900;
+    for (let i = 0; i < items.length; i++) {
+      const el = items[i];
+      if (!el.isConnected || el.hasAttribute("data-ffe-filtered")) continue;
+      const r = el.getBoundingClientRect();
+      if (r.bottom <= 0 || r.top >= vh) continue;
+      // 位於視口內但內容為空且無媒體（疑似被 FB 虛擬化卸載未重繪）
+      const txtLen = (el.textContent || "").trim().length;
+      if (txtLen === 0 && !el.querySelector("img, video, svg")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function wakeVirtualizedFeed() {
+    if (!state.isActivePage || !state.buttons.columns || document.hidden) return false;
+    const now = performance.now();
+    if (now - lastWakeAt < 650) return false;
+    if (!hasBlankVirtualizedCardInViewport()) return false;
+    lastWakeAt = now;
+    try {
+      window.dispatchEvent(new Event("resize"));
+      requestAnimationFrame(() => {
+        try {
+          window.dispatchEvent(new Event("scroll"));
+        } catch {}
+      });
+    } catch {}
+    return true;
+  }
+
+  function handleScrollUpRecovery() {
+    if (!state.isActivePage || !state.buttons.columns) return;
+    const curY = window.scrollY;
+    const isScrollingUp = curY < lastRecoveryScrollY - 120;
+    lastRecoveryScrollY = curY;
+    if (!isScrollingUp) return;
+    if (wakeTimer) clearTimeout(wakeTimer);
+    wakeTimer = setTimeout(() => {
+      wakeTimer = 0;
+      wakeVirtualizedFeed();
+    }, 260);
   }
 
   /* === MODULE: src/modules/ui_cleaner.js === */
@@ -1084,6 +1182,155 @@
     }
   }
 
+  /* === MODULE: src/modules/media_controls.js === */
+  const SPEED_MIN = 0.5;
+  const SPEED_MAX = 3.0;
+  const SPEED_STEP = 0.25;
+  const SEEK_SECONDS = 5;
+
+  function clampSpeed(val) {
+    const stepped = Math.round(val / SPEED_STEP) * SPEED_STEP;
+    return Math.max(SPEED_MIN, Math.min(SPEED_MAX, Number(stepped.toFixed(2))));
+  }
+
+  function applySpeedTo(v) {
+    if (!v || v.tagName !== "VIDEO" || !v.isConnected) return;
+    const target = state.buttons.speed ? clampSpeed(state.settings.playbackRate) : 1.0;
+    if (Math.abs(v.playbackRate - target) > 0.01) {
+      try {
+        v.playbackRate = target;
+      } catch {}
+    }
+  }
+
+  function applySpeedToAllVideos() {
+    if (!document.body) return;
+    const list = document.querySelectorAll("video");
+    for (let i = 0; i < list.length; i++) {
+      applySpeedTo(list[i]);
+    }
+  }
+
+  function adjustPlaybackSpeed(delta) {
+    state.settings.playbackRate = clampSpeed(state.settings.playbackRate + delta);
+    GM_setValue("playbackRate", state.settings.playbackRate);
+    if (!state.buttons.speed) {
+      state.buttons.speed = true;
+      GM_setValue("speedEnabled", true);
+      const speedBtn = document.getElementById("ffe-btn-speed");
+      if (speedBtn) updateButtonStyle(speedBtn, true);
+      updateCategoryDots();
+    }
+    applySpeedToAllVideos();
+    updateNumericLabels();
+  }
+
+  function findPrimaryVideo() {
+    if (!document.body) return null;
+    const list = Array.from(document.querySelectorAll("video")).filter((v) => v.isConnected);
+    if (!list.length) return null;
+    const vh = window.innerHeight || 900;
+    const vw = window.innerWidth || 1440;
+    // 1. 優先挑選視口內正在播放的影片
+    for (let i = 0; i < list.length; i++) {
+      const v = list[i];
+      const r = v.getBoundingClientRect();
+      if (!v.paused && r.width > 40 && r.height > 40 && r.bottom > 0 && r.top < vh && r.right > 0 && r.left < vw) {
+        return v;
+      }
+    }
+    // 2. 退而求其次挑選視口內面積最大的可見影片
+    let best = null;
+    let bestArea = 0;
+    for (let i = 0; i < list.length; i++) {
+      const v = list[i];
+      const r = v.getBoundingClientRect();
+      if (r.width <= 40 || r.height <= 40 || r.bottom <= 0 || r.top >= vh) continue;
+      const area = r.width * r.height;
+      if (area > bestArea) {
+        bestArea = area;
+        best = v;
+      }
+    }
+    return best || list[0];
+  }
+
+  function togglePictureInPicture() {
+    if (typeof document.exitPictureInPicture === "function" && document.pictureInPictureElement) {
+      try {
+        const p = document.exitPictureInPicture();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    const v = findPrimaryVideo();
+    if (!v || typeof v.requestPictureInPicture !== "function") return false;
+    try {
+      if (v.disablePictureInPicture) v.disablePictureInPicture = false;
+      const p = v.requestPictureInPicture();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function applyReelLoopPolicyTo(v) {
+    if (!v || v.tagName !== "VIDEO" || !v.isConnected) return;
+    if (!isReelContext(v)) return;
+    if (state.buttons.reelPauseOnEnd) {
+      if (v.loop) v.loop = false;
+    }
+  }
+
+  function handleReelTimeUpdateForPause(e) {
+    if (!state.buttons.reelPauseOnEnd) return;
+    const v = e.target;
+    if (!v || v.tagName !== "VIDEO" || !isReelContext(v)) return;
+    if (v.loop) v.loop = false;
+    // 部分 FB Reels 會透過 JS 自行在結尾前跳回 0，於最後 0.25s 提前安全暫停
+    if (Number.isFinite(v.duration) && v.duration > 1 && v.currentTime >= v.duration - 0.25 && !v.paused) {
+      try {
+        v.pause();
+      } catch {}
+    }
+  }
+
+  function handleMediaPlayEvent(e) {
+    const v = e.target;
+    if (!v || v.tagName !== "VIDEO") return;
+    applySpeedTo(v);
+    applyReelLoopPolicyTo(v);
+  }
+
+  function handleMediaHotkeys(e) {
+    if (!state.buttons.videoHotkeys || !state.isActivePage) return;
+    if (!e || e.ctrlKey || e.altKey || e.metaKey) return;
+    const active = document.activeElement;
+    if (active) {
+      const tag = active.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active.isContentEditable) return;
+    }
+    if (e.key === "[" || e.key === "]") {
+      adjustPlaybackSpeed(e.key === "]" ? SPEED_STEP : -SPEED_STEP);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      const v = findPrimaryVideo();
+      if (!v) return;
+      const delta = e.key === "ArrowRight" ? SEEK_SECONDS : -SEEK_SECONDS;
+      const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : Infinity;
+      const nextTime = Math.max(0, Math.min(dur, (v.currentTime || 0) + delta));
+      try {
+        v.currentTime = nextTime;
+      } catch {}
+      e.preventDefault();
+    }
+  }
+
   /* === MODULE: src/modules/content_filter.js === */
   const META_AI_RE = /(Meta AI|由 AI 生成|AI 資訊|AI info|向 Meta AI 提問|Ask Meta AI|試用 Meta AI|Try Meta AI)/i;
   const PYMK_RE = /^(你可能認識的人|你可能认识的人|People you may know)$/i;
@@ -1368,11 +1615,16 @@
   }
   function setupInteractiveObserver() {
     if (!HAS_IO || resources.observers.interactive) return;
-    resources.observers.interactive = new IntersectionObserver(onIntersect, {
-      root: null,
-      rootMargin: "150px",
-      threshold: 0,
-    });
+    internalIOCreating = true;
+    try {
+      resources.observers.interactive = new IntersectionObserver(onIntersect, {
+        root: null,
+        rootMargin: "150px",
+        threshold: 0,
+      });
+    } finally {
+      internalIOCreating = false;
+    }
   }
   function handleScanHit(el) {
     if (el.tagName === "VIDEO") {
@@ -1957,11 +2209,6 @@
       ".x1v0nzow.x1ceravr.x17zi3g0.xvue9z.x193iq5w,.x1xwk8fm.x193iq5w,.xsfy40s.x1miatn0.x9f619{width:auto;margin-right:0}";
     const sidebarCSS = state.buttons.sidebar ? sidebarActiveCSS : sidebarInactiveCSS;
     const heightVal = state.buttons.height ? state.settings.maxHeight : CONFIG.DEFAULT_MAX_HEIGHT;
-    const ew = state.settings.expandWidth;
-    const em = (100 - ew) / 2;
-    const expandWidthCSS = state.buttons.expandWidth
-      ? `.x1qjc9v5.x71s49j.x1a2a7pz{width:${ew}%;max-width:none;margin:0 ${em}%;flex:0 0 auto}`
-      : "";
     const root = `:root{--column-count:${state.settings.columns};--column-gap:${CONFIG.COLUMN_GAP}px;--max-post-height:${heightVal}vh;--sidebar-width:60px}`;
     const pageSmoothCSS = CONFIG.PAGE_SMOOTH_ENABLED ? ":root{scroll-behavior:smooth}" : "";
     const containerMaxWidth =
@@ -1972,7 +2219,7 @@
     const flexItem = `${CONFIG.FLEX_ITEM_SELECTOR}{width:calc((100% - (var(--column-gap)*(var(--column-count) - 1)))/var(--column-count));max-height:var(--max-post-height);overflow-y:auto;overflow-x:hidden;overflow-anchor:auto;scrollbar-width:thin;scrollbar-color:#1877f2 rgba(120,130,150,.25)}`;
     const hideElements =
       ".x1daaz14.x1t2pt76,.xwib8y2.x1y1aw1k.xwya9rg,.xq1tmr.xvue9z>.x1yztbdb,footer{display:none}";
-    return root + pageSmoothCSS + sidebarCSS + containerMaxWidth + flexContainer + flexItem + expandWidthCSS + hideElements;
+    return root + pageSmoothCSS + sidebarCSS + containerMaxWidth + flexContainer + flexItem + hideElements;
   }
   function applyMultiColumnCSS() {
     initStyleTag();
@@ -1999,7 +2246,7 @@
       return {
         ariaLabel: "FB Feed Enhancer 進階設定",
         title: "⚙️ FB 動態牆增強器 — 進階設定",
-        subtitle: "v2.1.0 控制中心｜所有設定即時生效並自動儲存",
+        subtitle: "v2.2.0 控制中心｜所有設定即時生效並自動儲存",
         closeTitle: "關閉設定視窗",
         commentSectionTitle: "留言排序偏好與快捷鍵",
         commentSortLabel: "預設留言排序目標",
@@ -2018,7 +2265,10 @@
           {
             title: "介面淨化與播放體驗",
             items: [
+              { key: "expandVirtualBuffer", label: "擴大 4 欄虛擬捲動緩衝區（防回捲變白）", desc: "延緩 FB 卸載已滑過的貼文（略增記憶體，切換後重新整理生效）；搭配自動回捲喚醒重繪" },
               { key: "hoverPlayVideo", label: "動態牆影片懸浮播放（預設暫停）", desc: "Feed 動態牆影片預設不自動播放，滑鼠移入播放、移開暫停（排除 Reels/Watch）" },
+              { key: "videoHotkeys", label: "影片進度與倍速快捷鍵", desc: "播放影片時按 ←/→ 快退/快進 5 秒、[/] 即時調整倍速（自動避開輸入框）" },
+              { key: "reelPauseOnEnd", label: "Reels 播完自動暫停（取消循環）", desc: "Reels 播放至結尾時自動暫停，避免重複循環洗腦" },
               { key: "reelsTitleHide", label: "Reels 播放時自動隱藏標題遮罩", desc: "播放 Reels 時淡出標題文字，暫停或移入滑鼠時恢復" },
               { key: "cleanRightRail", label: "隱藏右側欄（贊助／聯絡人／群聊）", desc: "移除右側欄區塊，釋放橫向瀏覽空間" },
               { key: "cleanMarketplaceTab", label: "隱藏頂部「商店」頁籤", desc: "隱藏頂部導覽列的 Marketplace 入口" },
@@ -2047,7 +2297,7 @@
     return {
       ariaLabel: "FB Feed Enhancer Advanced Settings",
       title: "⚙️ Facebook Feed Enhancer — Settings",
-      subtitle: "v2.1.0 Control Center | Changes apply immediately and auto-save",
+      subtitle: "v2.2.0 Control Center | Changes apply immediately and auto-save",
       closeTitle: "Close settings",
       commentSectionTitle: "Comment Sorting & Hotkeys",
       commentSortLabel: "Default comment sort target",
@@ -2066,7 +2316,10 @@
         {
           title: "UI Cleaner & Playback",
           items: [
+            { key: "expandVirtualBuffer", label: "Expand virtual scroll buffer (anti-blank scrollback)", desc: "Delays Facebook unloading scrolled posts in multi-column mode (reload to apply) + auto scroll-up wake" },
             { key: "hoverPlayVideo", label: "Feed video hover-to-play (paused by default)", desc: "Prevents Feed video autoplay; plays on hover and pauses on leave (excludes Reels/Watch)" },
+            { key: "videoHotkeys", label: "Video seek & speed hotkeys", desc: "Press ←/→ to seek 5s, [/] to adjust speed (ignores text inputs)" },
+            { key: "reelPauseOnEnd", label: "Pause Reels at end instead of looping", desc: "Automatically pauses Reels when reaching the end" },
             { key: "reelsTitleHide", label: "Auto-hide Reels title overlay during playback", desc: "Fades out Reels caption text while playing; restores on pause or hover" },
             { key: "cleanRightRail", label: "Hide Right Rail (Sponsored / Contacts / Chats)", desc: "Removes the right sidebar to maximize feed width" },
             { key: "cleanMarketplaceTab", label: "Hide top Marketplace tab", desc: "Hides the Marketplace shortcut in the top navigation bar" },
@@ -2103,6 +2356,16 @@
       const btn = document.getElementById("ffe-btn-hover-play");
       if (btn) updateButtonStyle(btn, state.buttons.hoverPlayVideo);
       updateCategoryDots();
+    } else if (key === "videoHotkeys") {
+      const btn = document.getElementById("ffe-btn-hotkeys");
+      if (btn) updateButtonStyle(btn, state.buttons.videoHotkeys);
+      updateCategoryDots();
+    } else if (key === "reelPauseOnEnd") {
+      const btn = document.getElementById("ffe-btn-reel-pause");
+      if (btn) updateButtonStyle(btn, state.buttons.reelPauseOnEnd);
+      const list = document.querySelectorAll("video");
+      for (let i = 0; i < list.length; i++) applyReelLoopPolicyTo(list[i]);
+      updateCategoryDots();
     } else if (key === "removeLoginWall") {
       if (state.buttons.removeLoginWall) applyLoginWallRemoval();
     } else if (key === "sanitizeLinks") {
@@ -2114,7 +2377,10 @@
 
   function resetAdvancedSettings() {
     const defaults = {
+      expandVirtualBuffer: true,
       hoverPlayVideo: false,
+      videoHotkeys: true,
+      reelPauseOnEnd: false,
       reelsTitleHide: true,
       cleanRightRail: false,
       cleanMarketplaceTab: false,
@@ -2403,6 +2669,40 @@
     btn.style.backgroundColor = isActive ? "#7D9D8B" : "#E5E7EB";
     btn.style.color = isActive ? "#FFFFFF" : "#2D3748";
   }
+  function createValueLabel(id) {
+    const el = document.createElement("div");
+    if (id) el.id = id;
+    Object.assign(el.style, {
+      width: "40px",
+      textAlign: "center",
+      fontSize: "10px",
+      lineHeight: "1.1",
+      fontFamily: "ui-monospace,monospace",
+      fontWeight: "bold",
+      color: "#6B8E9F",
+      whiteSpace: "nowrap",
+    });
+    return el;
+  }
+  function updateNumericLabels() {
+    const isZh = typeof isZhLocale === "function" ? isZhLocale() : true;
+    if (resources.colLabel?.isConnected) {
+      resources.colLabel.textContent = isZh ? `${state.settings.columns}欄` : `${state.settings.columns}col`;
+      resources.colLabel.style.color = state.buttons.columns ? "#6B8E9F" : "#718096";
+    }
+    if (resources.heightLabel?.isConnected) {
+      resources.heightLabel.textContent = `${state.settings.maxHeight}vh`;
+      resources.heightLabel.style.color = state.buttons.height ? "#6B8E9F" : "#718096";
+    }
+    if (resources.volLabel?.isConnected) {
+      resources.volLabel.textContent = `${Math.round(state.settings.volume * 100)}%`;
+      resources.volLabel.style.color = state.buttons.volume ? "#6B8E9F" : "#718096";
+    }
+    if (resources.speedLabel?.isConnected) {
+      resources.speedLabel.textContent = `${Number(state.settings.playbackRate).toFixed(2).replace(/\.00$/, ".0").replace(/(\.\d)0$/, "$1")}x`;
+      resources.speedLabel.style.color = state.buttons.speed ? "#6B8E9F" : "#718096";
+    }
+  }
   function updatePadLabel() {
     if (resources.padBtn?.isConnected) {
       resources.padBtn.title = `游標觸發範圍 ${state.settings.hoverPad}px（僅貼文）/ Post-only hover pad`;
@@ -2423,13 +2723,14 @@
         ? "自動展開留言／回覆／更多留言（游標展開已停用）/ Comments, replies and more-comments auto-expand"
         : "自動展開留言／回覆／更多留言 / Comments, replies and more-comments auto-expand";
     }
+    updateNumericLabels();
     updateCategoryDots();
   }
   function updateCategoryDots() {
     const map = {
-      layout: state.buttons.sidebar || state.buttons.columns || state.buttons.height || state.buttons.expandWidth,
+      layout: state.buttons.sidebar || state.buttons.columns || state.buttons.height,
       feed: state.buttons.preventRefresh || state.buttons.allComments || state.buttons.postExpand || state.buttons.otherExpand || state.buttons.adHide || state.buttons.like || state.buttons.autoLikePost || state.buttons.hoverPad,
-      media: state.buttons.volume || state.buttons.hoverPlayVideo,
+      media: state.buttons.volume || state.buttons.speed || state.buttons.hoverPlayVideo || state.buttons.videoHotkeys || state.buttons.reelPauseOnEnd,
     };
     for (const [cat, hasOn] of Object.entries(map)) {
       const btn = resources.drawerTriggers?.[cat];
@@ -2457,7 +2758,7 @@
     closeAllDrawers();
     if (willOpen) {
       const r = trig.getBoundingClientRect();
-      const topPos = Math.max(12, Math.min(window.innerHeight - 86, r.top - 6));
+      const topPos = Math.max(12, Math.min(window.innerHeight - 96, r.top - 10));
       drawer.style.top = `${Math.round(topPos)}px`;
       drawer.style.display = "flex";
       drawer.classList.add("ffe-drawer-open");
@@ -2511,6 +2812,10 @@
       resources.activeDrawer = null;
       resources.padBtn = null;
       resources.padLabel = null;
+      resources.colLabel = null;
+      resources.heightLabel = null;
+      resources.volLabel = null;
+      resources.speedLabel = null;
       resources.likeBtn = null;
       resources.expandBtn = null;
       resources.settingsBtn = null;
@@ -2566,23 +2871,23 @@
       return btn;
     };
 
-    // === 1. 版面與排版抽屜元件 ===
+    // === 1. 版面與排版抽屜元件（精簡移除無感 ↔️，新增即時數值標籤） ===
     const sidebarBtn = createIconButton("📐", "sidebar", applyMultiColumnCSS, "側欄收縮 / Toggle sidebar");
     const columnBtn = createIconButton("🗂️", "columns", applyMultiColumnCSS, "多欄佈局 / Multi-column layout");
     const columnControlGroup = createControlGroup([
       createSmallButton("−", () => adjustColumnCount(-1)),
       createSmallButton("+", () => adjustColumnCount(1)),
     ]);
+    const colLabel = createValueLabel("ffe-label-columns");
+    resources.colLabel = colLabel;
+
     const heightBtn = createIconButton("↕️", "height", applyMultiColumnCSS, `高度控制（${CONFIG.HEIGHT_MIN}～${CONFIG.HEIGHT_MAX}vh，每次${CONFIG.HEIGHT_STEP}）/ Height control`);
     const heightControlGroup = createControlGroup([
       createSmallButton("−", () => adjustMaxHeight(-CONFIG.HEIGHT_STEP)),
       createSmallButton("+", () => adjustMaxHeight(CONFIG.HEIGHT_STEP)),
     ]);
-    const expandWidthBtn = createIconButton("↔️", "expandWidth", applyMultiColumnCSS, "展開寬度 / Expand width");
-    const expandWidthControlGroup = createControlGroup([
-      createSmallButton("−", () => adjustExpandWidth(-CONFIG.EXPAND_WIDTH_STEP)),
-      createSmallButton("+", () => adjustExpandWidth(CONFIG.EXPAND_WIDTH_STEP)),
-    ]);
+    const heightLabel = createValueLabel("ffe-label-height");
+    resources.heightLabel = heightLabel;
 
     // === 2. 自動互動與淨化抽屜元件 ===
     const preventRefreshBtn = createIconButton("🔒", "preventRefresh", null, "防止切換分頁自動重新整理 / Prevent auto-refresh on tab switch");
@@ -2613,19 +2918,10 @@
       createSmallButton("−", () => adjustHoverPad(-CONFIG.HOVER_PAD_STEP)),
       createSmallButton("+", () => adjustHoverPad(CONFIG.HOVER_PAD_STEP)),
     ]);
-    const padLabel = document.createElement("div");
-    Object.assign(padLabel.style, {
-      width: "40px",
-      textAlign: "center",
-      fontSize: "10px",
-      lineHeight: "1.1",
-      fontFamily: "ui-monospace,monospace",
-      fontWeight: "bold",
-      color: "#6B8E9F",
-    });
+    const padLabel = createValueLabel("ffe-label-pad");
     resources.padLabel = padLabel;
 
-    // === 3. 影片與媒體抽屜元件 ===
+    // === 3. 影片與媒體抽屜元件（音量聯動、統一倍速、懸浮播放、PiP、快捷鍵、Reels 播完暫停） ===
     const volumeBtn = createIconButton(
       "🔊",
       "volume",
@@ -2644,6 +2940,25 @@
       createSmallButton("−", () => adjustVolume(-0.1)),
       createSmallButton("+", () => adjustVolume(0.1)),
     ]);
+    const volLabel = createValueLabel("ffe-label-volume");
+    resources.volLabel = volLabel;
+
+    const speedBtn = createIconButton(
+      "⏩",
+      "speed",
+      () => {
+        applySpeedToAllVideos();
+      },
+      "統一倍速控制（0.5x～3.0x，跨 Reels/Watch/Feed 記憶套用）/ Unified playback speed",
+      "ffe-btn-speed",
+    );
+    const speedControlGroup = createControlGroup([
+      createSmallButton("−", () => adjustPlaybackSpeed(-SPEED_STEP)),
+      createSmallButton("+", () => adjustPlaybackSpeed(SPEED_STEP)),
+    ]);
+    const speedLabel = createValueLabel("ffe-label-speed");
+    resources.speedLabel = speedLabel;
+
     const hoverPlayBtn = createIconButton(
       "▶️",
       "hoverPlayVideo",
@@ -2653,6 +2968,49 @@
       },
       "動態牆影片懸浮播放（預設暫停，滑鼠移入播放；排除 Reels/Watch）/ Feed hover-to-play video",
       "ffe-btn-hover-play",
+    );
+
+    const pipBtn = document.createElement("button");
+    pipBtn.type = "button";
+    pipBtn.id = "ffe-btn-pip";
+    Object.assign(pipBtn.style, {
+      padding: "8px 0",
+      border: "none",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontWeight: "bold",
+      width: "40px",
+      textAlign: "center",
+      fontSize: "16px",
+      lineHeight: "1",
+      backgroundColor: "#E5E7EB",
+      color: "#2D3748",
+      flex: "0 0 auto",
+    });
+    pipBtn.textContent = "🖼️";
+    pipBtn.title = "一鍵子母畫面（PiP）/ Toggle Picture-in-Picture";
+    registerEventListener(pipBtn, "click", () => togglePictureInPicture());
+
+    const hotkeysBtn = createIconButton(
+      "⌨️",
+      "videoHotkeys",
+      () => {
+        syncSettingsModalValues();
+      },
+      "影片快捷鍵（←/→ 快退快進 5 秒、[/] 調整倍速）/ Video hotkeys (←/→ 5s, [/] speed)",
+      "ffe-btn-hotkeys",
+    );
+
+    const reelPauseBtn = createIconButton(
+      "🔁",
+      "reelPauseOnEnd",
+      () => {
+        const list = document.querySelectorAll("video");
+        for (let i = 0; i < list.length; i++) applyReelLoopPolicyTo(list[i]);
+        syncSettingsModalValues();
+      },
+      "Reels 播完自動暫停（開啟＝播完暫停；關閉＝原生循環）/ Pause Reels at end instead of looping",
+      "ffe-btn-reel-pause",
     );
 
     const buildDrawer = (cat, titleText, cells) => {
@@ -2672,9 +3030,8 @@
     const isZh = typeof isZhLocale === "function" ? isZhLocale() : true;
     buildDrawer("layout", isZh ? "版面排版" : "Layout", [
       createDrawerCell([sidebarBtn]),
-      createDrawerCell([columnBtn, columnControlGroup]),
-      createDrawerCell([heightBtn, heightControlGroup]),
-      createDrawerCell([expandWidthBtn, expandWidthControlGroup]),
+      createDrawerCell([columnBtn, columnControlGroup, colLabel]),
+      createDrawerCell([heightBtn, heightControlGroup, heightLabel]),
     ]);
     buildDrawer("feed", isZh ? "互動淨化" : "Feed & Auto", [
       createDrawerCell([preventRefreshBtn]),
@@ -2687,8 +3044,12 @@
       createDrawerCell([hoverBtn, hoverControlGroup, padLabel]),
     ]);
     buildDrawer("media", isZh ? "影片媒體" : "Media", [
-      createDrawerCell([volumeBtn, volumeControlGroup]),
+      createDrawerCell([volumeBtn, volumeControlGroup, volLabel]),
+      createDrawerCell([speedBtn, speedControlGroup, speedLabel]),
       createDrawerCell([hoverPlayBtn]),
+      createDrawerCell([pipBtn]),
+      createDrawerCell([hotkeysBtn]),
+      createDrawerCell([reelPauseBtn]),
     ]);
 
     const createCategoryTrigger = (cat, icon, titleText) => {
@@ -2711,7 +3072,7 @@
 
     const layoutCatBtn = createCategoryTrigger("layout", "🗂️", "版面與多欄排版 / Layout & Columns");
     const feedCatBtn = createCategoryTrigger("feed", "⚡", "自動互動與廣告淨化 / Feed & Auto Controls");
-    const mediaCatBtn = createCategoryTrigger("media", "🎬", "影片音量與懸浮播放 / Video & Media");
+    const mediaCatBtn = createCategoryTrigger("media", "🎬", "影片音量、倍速、PiP 與播放控制 / Video & Media");
 
     const settingsBtn = document.createElement("button");
     settingsBtn.type = "button";
@@ -2756,16 +3117,13 @@
     state.settings.columns = Math.max(1, state.settings.columns + change);
     GM_setValue("columnCount", state.settings.columns);
     if (state.buttons.columns) applyMultiColumnCSS();
+    updateNumericLabels();
   }
   function adjustMaxHeight(change) {
     state.settings.maxHeight = Math.max(CONFIG.HEIGHT_MIN, Math.min(CONFIG.HEIGHT_MAX, state.settings.maxHeight + change));
     GM_setValue("maxHeight", state.settings.maxHeight);
     if (state.buttons.height) applyMultiColumnCSS();
-  }
-  function adjustExpandWidth(change) {
-    state.settings.expandWidth = Math.max(10, Math.min(100, state.settings.expandWidth + change));
-    GM_setValue("expandWidth", state.settings.expandWidth);
-    if (state.buttons.expandWidth) applyMultiColumnCSS();
+    updateNumericLabels();
   }
   function adjustHoverPad(change) {
     state.settings.hoverPad = Math.max(0, Math.min(CONFIG.HOVER_PAD_MAX, state.settings.hoverPad + change));
@@ -2776,6 +3134,7 @@
     state.settings.volume = Math.max(0, Math.min(1, Math.round((state.settings.volume + change) * 10) / 10));
     GM_setValue("volume", state.settings.volume);
     if (state.buttons.volume) processAllVideos();
+    updateNumericLabels();
   }
 
   /* === MODULE: src/main.js === */
@@ -2988,6 +3347,7 @@
     setupNavigationHandler();
     setupNavObserver();
     registerEventListener(window, "scroll", markScroll, { passive: true, capture: true });
+    registerEventListener(window, "scroll", handleScrollUpRecovery, { passive: true, capture: true });
     if (HAS_SCROLL_END) registerEventListener(window, "scrollend", markScrollEnd, { passive: true, capture: true });
     registerEventListener(document, "mouseover", handleMouseOver, { passive: true });
     registerEventListener(document, "pointermove", handleHoverVideoPointerMove, { passive: true });
@@ -2995,9 +3355,12 @@
     registerEventListener(document, "click", handleHoverVideoClick, { passive: true });
     registerEventListener(document, "click", handleLinkClickSanitize, { capture: true });
     registerEventListener(document, "keydown", handleCommentSortHotkey);
+    registerEventListener(document, "keydown", handleMediaHotkeys);
     registerEventListener(document, "play", handleVideoPlay, { passive: true, capture: true });
+    registerEventListener(document, "play", handleMediaPlayEvent, { passive: true, capture: true });
     registerEventListener(document, "play", handleHoverVideoPlay, { capture: true });
     registerEventListener(document, "play", handleReelVideoEvent, { passive: true, capture: true });
+    registerEventListener(document, "timeupdate", handleReelTimeUpdateForPause, { passive: true, capture: true });
     registerEventListener(document, "pause", handleReelVideoEvent, { passive: true, capture: true });
     registerEventListener(document, "ended", handleReelVideoEvent, { passive: true, capture: true });
     registerEventListener(document, "visibilitychange", onVisibility);
@@ -3006,6 +3369,7 @@
     state.lastHref = "";
     handleNavigation();
   }
+  installVirtualBufferHook();
   setupPreventRefresh();
   hookHistory();
   if (document.readyState === "loading") {

@@ -93,11 +93,16 @@
   }
   function setupInteractiveObserver() {
     if (!HAS_IO || resources.observers.interactive) return;
-    resources.observers.interactive = new IntersectionObserver(onIntersect, {
-      root: null,
-      rootMargin: "150px",
-      threshold: 0,
-    });
+    internalIOCreating = true;
+    try {
+      resources.observers.interactive = new IntersectionObserver(onIntersect, {
+        root: null,
+        rootMargin: "150px",
+        threshold: 0,
+      });
+    } finally {
+      internalIOCreating = false;
+    }
   }
   function handleScanHit(el) {
     if (el.tagName === "VIDEO") {

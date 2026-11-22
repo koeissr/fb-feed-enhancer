@@ -207,6 +207,7 @@
     setupNavigationHandler();
     setupNavObserver();
     registerEventListener(window, "scroll", markScroll, { passive: true, capture: true });
+    registerEventListener(window, "scroll", handleScrollUpRecovery, { passive: true, capture: true });
     if (HAS_SCROLL_END) registerEventListener(window, "scrollend", markScrollEnd, { passive: true, capture: true });
     registerEventListener(document, "mouseover", handleMouseOver, { passive: true });
     registerEventListener(document, "pointermove", handleHoverVideoPointerMove, { passive: true });
@@ -214,9 +215,12 @@
     registerEventListener(document, "click", handleHoverVideoClick, { passive: true });
     registerEventListener(document, "click", handleLinkClickSanitize, { capture: true });
     registerEventListener(document, "keydown", handleCommentSortHotkey);
+    registerEventListener(document, "keydown", handleMediaHotkeys);
     registerEventListener(document, "play", handleVideoPlay, { passive: true, capture: true });
+    registerEventListener(document, "play", handleMediaPlayEvent, { passive: true, capture: true });
     registerEventListener(document, "play", handleHoverVideoPlay, { capture: true });
     registerEventListener(document, "play", handleReelVideoEvent, { passive: true, capture: true });
+    registerEventListener(document, "timeupdate", handleReelTimeUpdateForPause, { passive: true, capture: true });
     registerEventListener(document, "pause", handleReelVideoEvent, { passive: true, capture: true });
     registerEventListener(document, "ended", handleReelVideoEvent, { passive: true, capture: true });
     registerEventListener(document, "visibilitychange", onVisibility);
@@ -225,6 +229,7 @@
     state.lastHref = "";
     handleNavigation();
   }
+  installVirtualBufferHook();
   setupPreventRefresh();
   hookHistory();
   if (document.readyState === "loading") {

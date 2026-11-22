@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.2.0 (2026-11-22)
+
+### Added
+- **4 欄防回捲變白雙重強化（[scroll_recovery.js](file:///d:/Projects/fb-feed-enhancer/src/modules/scroll_recovery.js)）**：
+  - 於 `document-start` 擴大 Facebook 虛擬捲動 `IntersectionObserver` 上下緩衝區至 `2200px`（`⚙️` 設定彈窗可開關，預設開啟），大幅延緩 4 欄舊貼文被卸載。
+  - 向上回捲偵測到視口內有空白佔位殼時自動節流喚醒重繪。
+- **🎬 影片媒體抽屜全套增強（[media_controls.js](file:///d:/Projects/fb-feed-enhancer/src/modules/media_controls.js)）**：
+  - `⏩` 統一倍速控制（`0.5x ~ 3.0x`，步進 `0.25x`，跨 Reels／Watch／Feed 自動記憶套用）。
+  - `🖼️` 一鍵子母畫面（Picture-in-Picture）。
+  - `⌨️` 影片快捷鍵：`←`/`→` 快退／快進 5 秒、`[`/`]` 即時加減速（自動避開輸入框）。
+  - `🔁` Reels 播完自動暫停開關（取代重複循環）。
+- **版面與媒體抽屜即時數值標籤**：`🗂️`（`4欄`）、`↕️`（`80vh`）、`🔊`（`20%`）、`⏩`（`1.0x`）。
+
+### Removed
+- 移除在多欄動態牆下無實質效果的 `↔️` 展開寬度按鈕，讓版面抽屜更精簡。
+
 ## v2.1.0 (2026-11-22)
 
 ### Added

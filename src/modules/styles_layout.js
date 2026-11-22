@@ -62,11 +62,6 @@
       ".x1v0nzow.x1ceravr.x17zi3g0.xvue9z.x193iq5w,.x1xwk8fm.x193iq5w,.xsfy40s.x1miatn0.x9f619{width:auto;margin-right:0}";
     const sidebarCSS = state.buttons.sidebar ? sidebarActiveCSS : sidebarInactiveCSS;
     const heightVal = state.buttons.height ? state.settings.maxHeight : CONFIG.DEFAULT_MAX_HEIGHT;
-    const ew = state.settings.expandWidth;
-    const em = (100 - ew) / 2;
-    const expandWidthCSS = state.buttons.expandWidth
-      ? `.x1qjc9v5.x71s49j.x1a2a7pz{width:${ew}%;max-width:none;margin:0 ${em}%;flex:0 0 auto}`
-      : "";
     const root = `:root{--column-count:${state.settings.columns};--column-gap:${CONFIG.COLUMN_GAP}px;--max-post-height:${heightVal}vh;--sidebar-width:60px}`;
     const pageSmoothCSS = CONFIG.PAGE_SMOOTH_ENABLED ? ":root{scroll-behavior:smooth}" : "";
     const containerMaxWidth =
@@ -77,7 +72,7 @@
     const flexItem = `${CONFIG.FLEX_ITEM_SELECTOR}{width:calc((100% - (var(--column-gap)*(var(--column-count) - 1)))/var(--column-count));max-height:var(--max-post-height);overflow-y:auto;overflow-x:hidden;overflow-anchor:auto;scrollbar-width:thin;scrollbar-color:#1877f2 rgba(120,130,150,.25)}`;
     const hideElements =
       ".x1daaz14.x1t2pt76,.xwib8y2.x1y1aw1k.xwya9rg,.xq1tmr.xvue9z>.x1yztbdb,footer{display:none}";
-    return root + pageSmoothCSS + sidebarCSS + containerMaxWidth + flexContainer + flexItem + expandWidthCSS + hideElements;
+    return root + pageSmoothCSS + sidebarCSS + containerMaxWidth + flexContainer + flexItem + hideElements;
   }
   function applyMultiColumnCSS() {
     initStyleTag();

@@ -2,6 +2,40 @@
     btn.style.backgroundColor = isActive ? "#7D9D8B" : "#E5E7EB";
     btn.style.color = isActive ? "#FFFFFF" : "#2D3748";
   }
+  function createValueLabel(id) {
+    const el = document.createElement("div");
+    if (id) el.id = id;
+    Object.assign(el.style, {
+      width: "40px",
+      textAlign: "center",
+      fontSize: "10px",
+      lineHeight: "1.1",
+      fontFamily: "ui-monospace,monospace",
+      fontWeight: "bold",
+      color: "#6B8E9F",
+      whiteSpace: "nowrap",
+    });
+    return el;
+  }
+  function updateNumericLabels() {
+    const isZh = typeof isZhLocale === "function" ? isZhLocale() : true;
+    if (resources.colLabel?.isConnected) {
+      resources.colLabel.textContent = isZh ? `${state.settings.columns}欄` : `${state.settings.columns}col`;
+      resources.colLabel.style.color = state.buttons.columns ? "#6B8E9F" : "#718096";
+    }
+    if (resources.heightLabel?.isConnected) {
+      resources.heightLabel.textContent = `${state.settings.maxHeight}vh`;
+      resources.heightLabel.style.color = state.buttons.height ? "#6B8E9F" : "#718096";
+    }
+    if (resources.volLabel?.isConnected) {
+      resources.volLabel.textContent = `${Math.round(state.settings.volume * 100)}%`;
+      resources.volLabel.style.color = state.buttons.volume ? "#6B8E9F" : "#718096";
+    }
+    if (resources.speedLabel?.isConnected) {
+      resources.speedLabel.textContent = `${Number(state.settings.playbackRate).toFixed(2).replace(/\.00$/, ".0").replace(/(\.\d)0$/, "$1")}x`;
+      resources.speedLabel.style.color = state.buttons.speed ? "#6B8E9F" : "#718096";
+    }
+  }
   function updatePadLabel() {
     if (resources.padBtn?.isConnected) {
       resources.padBtn.title = `游標觸發範圍 ${state.settings.hoverPad}px（僅貼文）/ Post-only hover pad`;
@@ -22,13 +56,14 @@
         ? "自動展開留言／回覆／更多留言（游標展開已停用）/ Comments, replies and more-comments auto-expand"
         : "自動展開留言／回覆／更多留言 / Comments, replies and more-comments auto-expand";
     }
+    updateNumericLabels();
     updateCategoryDots();
   }
   function updateCategoryDots() {
     const map = {
-      layout: state.buttons.sidebar || state.buttons.columns || state.buttons.height || state.buttons.expandWidth,
+      layout: state.buttons.sidebar || state.buttons.columns || state.buttons.height,
       feed: state.buttons.preventRefresh || state.buttons.allComments || state.buttons.postExpand || state.buttons.otherExpand || state.buttons.adHide || state.buttons.like || state.buttons.autoLikePost || state.buttons.hoverPad,
-      media: state.buttons.volume || state.buttons.hoverPlayVideo,
+      media: state.buttons.volume || state.buttons.speed || state.buttons.hoverPlayVideo || state.buttons.videoHotkeys || state.buttons.reelPauseOnEnd,
     };
     for (const [cat, hasOn] of Object.entries(map)) {
       const btn = resources.drawerTriggers?.[cat];
@@ -56,7 +91,7 @@
     closeAllDrawers();
     if (willOpen) {
       const r = trig.getBoundingClientRect();
-      const topPos = Math.max(12, Math.min(window.innerHeight - 86, r.top - 6));
+      const topPos = Math.max(12, Math.min(window.innerHeight - 96, r.top - 10));
       drawer.style.top = `${Math.round(topPos)}px`;
       drawer.style.display = "flex";
       drawer.classList.add("ffe-drawer-open");
@@ -110,6 +145,10 @@
       resources.activeDrawer = null;
       resources.padBtn = null;
       resources.padLabel = null;
+      resources.colLabel = null;
+      resources.heightLabel = null;
+      resources.volLabel = null;
+      resources.speedLabel = null;
       resources.likeBtn = null;
       resources.expandBtn = null;
       resources.settingsBtn = null;
@@ -165,23 +204,23 @@
       return btn;
     };
 
-    // === 1. 版面與排版抽屜元件 ===
+    // === 1. 版面與排版抽屜元件（精簡移除無感 ↔️，新增即時數值標籤） ===
     const sidebarBtn = createIconButton("📐", "sidebar", applyMultiColumnCSS, "側欄收縮 / Toggle sidebar");
     const columnBtn = createIconButton("🗂️", "columns", applyMultiColumnCSS, "多欄佈局 / Multi-column layout");
     const columnControlGroup = createControlGroup([
       createSmallButton("−", () => adjustColumnCount(-1)),
       createSmallButton("+", () => adjustColumnCount(1)),
     ]);
+    const colLabel = createValueLabel("ffe-label-columns");
+    resources.colLabel = colLabel;
+
     const heightBtn = createIconButton("↕️", "height", applyMultiColumnCSS, `高度控制（${CONFIG.HEIGHT_MIN}～${CONFIG.HEIGHT_MAX}vh，每次${CONFIG.HEIGHT_STEP}）/ Height control`);
     const heightControlGroup = createControlGroup([
       createSmallButton("−", () => adjustMaxHeight(-CONFIG.HEIGHT_STEP)),
       createSmallButton("+", () => adjustMaxHeight(CONFIG.HEIGHT_STEP)),
     ]);
-    const expandWidthBtn = createIconButton("↔️", "expandWidth", applyMultiColumnCSS, "展開寬度 / Expand width");
-    const expandWidthControlGroup = createControlGroup([
-      createSmallButton("−", () => adjustExpandWidth(-CONFIG.EXPAND_WIDTH_STEP)),
-      createSmallButton("+", () => adjustExpandWidth(CONFIG.EXPAND_WIDTH_STEP)),
-    ]);
+    const heightLabel = createValueLabel("ffe-label-height");
+    resources.heightLabel = heightLabel;
 
     // === 2. 自動互動與淨化抽屜元件 ===
     const preventRefreshBtn = createIconButton("🔒", "preventRefresh", null, "防止切換分頁自動重新整理 / Prevent auto-refresh on tab switch");
@@ -212,19 +251,10 @@
       createSmallButton("−", () => adjustHoverPad(-CONFIG.HOVER_PAD_STEP)),
       createSmallButton("+", () => adjustHoverPad(CONFIG.HOVER_PAD_STEP)),
     ]);
-    const padLabel = document.createElement("div");
-    Object.assign(padLabel.style, {
-      width: "40px",
-      textAlign: "center",
-      fontSize: "10px",
-      lineHeight: "1.1",
-      fontFamily: "ui-monospace,monospace",
-      fontWeight: "bold",
-      color: "#6B8E9F",
-    });
+    const padLabel = createValueLabel("ffe-label-pad");
     resources.padLabel = padLabel;
 
-    // === 3. 影片與媒體抽屜元件 ===
+    // === 3. 影片與媒體抽屜元件（音量聯動、統一倍速、懸浮播放、PiP、快捷鍵、Reels 播完暫停） ===
     const volumeBtn = createIconButton(
       "🔊",
       "volume",
@@ -243,6 +273,25 @@
       createSmallButton("−", () => adjustVolume(-0.1)),
       createSmallButton("+", () => adjustVolume(0.1)),
     ]);
+    const volLabel = createValueLabel("ffe-label-volume");
+    resources.volLabel = volLabel;
+
+    const speedBtn = createIconButton(
+      "⏩",
+      "speed",
+      () => {
+        applySpeedToAllVideos();
+      },
+      "統一倍速控制（0.5x～3.0x，跨 Reels/Watch/Feed 記憶套用）/ Unified playback speed",
+      "ffe-btn-speed",
+    );
+    const speedControlGroup = createControlGroup([
+      createSmallButton("−", () => adjustPlaybackSpeed(-SPEED_STEP)),
+      createSmallButton("+", () => adjustPlaybackSpeed(SPEED_STEP)),
+    ]);
+    const speedLabel = createValueLabel("ffe-label-speed");
+    resources.speedLabel = speedLabel;
+
     const hoverPlayBtn = createIconButton(
       "▶️",
       "hoverPlayVideo",
@@ -252,6 +301,49 @@
       },
       "動態牆影片懸浮播放（預設暫停，滑鼠移入播放；排除 Reels/Watch）/ Feed hover-to-play video",
       "ffe-btn-hover-play",
+    );
+
+    const pipBtn = document.createElement("button");
+    pipBtn.type = "button";
+    pipBtn.id = "ffe-btn-pip";
+    Object.assign(pipBtn.style, {
+      padding: "8px 0",
+      border: "none",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontWeight: "bold",
+      width: "40px",
+      textAlign: "center",
+      fontSize: "16px",
+      lineHeight: "1",
+      backgroundColor: "#E5E7EB",
+      color: "#2D3748",
+      flex: "0 0 auto",
+    });
+    pipBtn.textContent = "🖼️";
+    pipBtn.title = "一鍵子母畫面（PiP）/ Toggle Picture-in-Picture";
+    registerEventListener(pipBtn, "click", () => togglePictureInPicture());
+
+    const hotkeysBtn = createIconButton(
+      "⌨️",
+      "videoHotkeys",
+      () => {
+        syncSettingsModalValues();
+      },
+      "影片快捷鍵（←/→ 快退快進 5 秒、[/] 調整倍速）/ Video hotkeys (←/→ 5s, [/] speed)",
+      "ffe-btn-hotkeys",
+    );
+
+    const reelPauseBtn = createIconButton(
+      "🔁",
+      "reelPauseOnEnd",
+      () => {
+        const list = document.querySelectorAll("video");
+        for (let i = 0; i < list.length; i++) applyReelLoopPolicyTo(list[i]);
+        syncSettingsModalValues();
+      },
+      "Reels 播完自動暫停（開啟＝播完暫停；關閉＝原生循環）/ Pause Reels at end instead of looping",
+      "ffe-btn-reel-pause",
     );
 
     const buildDrawer = (cat, titleText, cells) => {
@@ -271,9 +363,8 @@
     const isZh = typeof isZhLocale === "function" ? isZhLocale() : true;
     buildDrawer("layout", isZh ? "版面排版" : "Layout", [
       createDrawerCell([sidebarBtn]),
-      createDrawerCell([columnBtn, columnControlGroup]),
-      createDrawerCell([heightBtn, heightControlGroup]),
-      createDrawerCell([expandWidthBtn, expandWidthControlGroup]),
+      createDrawerCell([columnBtn, columnControlGroup, colLabel]),
+      createDrawerCell([heightBtn, heightControlGroup, heightLabel]),
     ]);
     buildDrawer("feed", isZh ? "互動淨化" : "Feed & Auto", [
       createDrawerCell([preventRefreshBtn]),
@@ -286,8 +377,12 @@
       createDrawerCell([hoverBtn, hoverControlGroup, padLabel]),
     ]);
     buildDrawer("media", isZh ? "影片媒體" : "Media", [
-      createDrawerCell([volumeBtn, volumeControlGroup]),
+      createDrawerCell([volumeBtn, volumeControlGroup, volLabel]),
+      createDrawerCell([speedBtn, speedControlGroup, speedLabel]),
       createDrawerCell([hoverPlayBtn]),
+      createDrawerCell([pipBtn]),
+      createDrawerCell([hotkeysBtn]),
+      createDrawerCell([reelPauseBtn]),
     ]);
 
     const createCategoryTrigger = (cat, icon, titleText) => {
@@ -310,7 +405,7 @@
 
     const layoutCatBtn = createCategoryTrigger("layout", "🗂️", "版面與多欄排版 / Layout & Columns");
     const feedCatBtn = createCategoryTrigger("feed", "⚡", "自動互動與廣告淨化 / Feed & Auto Controls");
-    const mediaCatBtn = createCategoryTrigger("media", "🎬", "影片音量與懸浮播放 / Video & Media");
+    const mediaCatBtn = createCategoryTrigger("media", "🎬", "影片音量、倍速、PiP 與播放控制 / Video & Media");
 
     const settingsBtn = document.createElement("button");
     settingsBtn.type = "button";
@@ -355,16 +450,13 @@
     state.settings.columns = Math.max(1, state.settings.columns + change);
     GM_setValue("columnCount", state.settings.columns);
     if (state.buttons.columns) applyMultiColumnCSS();
+    updateNumericLabels();
   }
   function adjustMaxHeight(change) {
     state.settings.maxHeight = Math.max(CONFIG.HEIGHT_MIN, Math.min(CONFIG.HEIGHT_MAX, state.settings.maxHeight + change));
     GM_setValue("maxHeight", state.settings.maxHeight);
     if (state.buttons.height) applyMultiColumnCSS();
-  }
-  function adjustExpandWidth(change) {
-    state.settings.expandWidth = Math.max(10, Math.min(100, state.settings.expandWidth + change));
-    GM_setValue("expandWidth", state.settings.expandWidth);
-    if (state.buttons.expandWidth) applyMultiColumnCSS();
+    updateNumericLabels();
   }
   function adjustHoverPad(change) {
     state.settings.hoverPad = Math.max(0, Math.min(CONFIG.HOVER_PAD_MAX, state.settings.hoverPad + change));
@@ -375,4 +467,5 @@
     state.settings.volume = Math.max(0, Math.min(1, Math.round((state.settings.volume + change) * 10) / 10));
     GM_setValue("volume", state.settings.volume);
     if (state.buttons.volume) processAllVideos();
+    updateNumericLabels();
   }
