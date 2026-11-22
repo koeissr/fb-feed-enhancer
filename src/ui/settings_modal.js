@@ -10,7 +10,7 @@
       return {
         ariaLabel: "FB Feed Enhancer 進階設定",
         title: "⚙️ FB 動態牆增強器 — 進階設定",
-        subtitle: "v2.2.0 控制中心｜所有設定即時生效並自動儲存",
+        subtitle: "v2.2.1 控制中心｜所有設定即時生效並自動儲存",
         closeTitle: "關閉設定視窗",
         commentSectionTitle: "留言排序偏好與快捷鍵",
         commentSortLabel: "預設留言排序目標",
@@ -61,7 +61,7 @@
     return {
       ariaLabel: "FB Feed Enhancer Advanced Settings",
       title: "⚙️ Facebook Feed Enhancer — Settings",
-      subtitle: "v2.2.0 Control Center | Changes apply immediately and auto-save",
+      subtitle: "v2.2.1 Control Center | Changes apply immediately and auto-save",
       closeTitle: "Close settings",
       commentSectionTitle: "Comment Sorting & Hotkeys",
       commentSortLabel: "Default comment sort target",

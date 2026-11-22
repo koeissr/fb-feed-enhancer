@@ -1,7 +1,6 @@
   const CONFIG = {
     ALLOWED_PATHS: [
-      /^\/$/,
-      /^\/\?filter=(all|favorites|friends|groups|pages)&sk=h_chr$/,
+      /^\/(?:\?.*)?$/,
       /^\/[^/]+\/posts\/.*$/,
       /^\/reel\/.*$/,
       /^\/search\/.*$/,

@@ -212,7 +212,7 @@ async function main() {
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const httpPort = server.address().port;
-  const fixtureUrl = `http://127.0.0.1:${httpPort}/`;
+  const fixtureUrl = `http://127.0.0.1:${httpPort}/?locale=zh_TW`;
 
   // 啟動真實 Headless Chrome
   const debugPort = 19222 + Math.floor(Math.random() * 1000);

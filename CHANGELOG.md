@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.2.1 (2026-11-22)
+
+### Fixed
+- **修復帶查詢參數之 Facebook 首頁（如 `/?locale=zh_TW`、`/?sk=...`、`/?ref=...`）無法啟動插件的問題**：將 [src/core/config.js](file:///d:/Projects/fb-feed-enhancer/src/core/config.js) 之首頁路徑白名單由 `/^\/$/` 放寬為 `/^\/(?:\?.*)?$/`，確保所有首頁變體網址皆自動生效且關閉貼文燈箱後不再退回預設單欄。
+
 ## v2.2.0 (2026-11-22)
 
 ### Added

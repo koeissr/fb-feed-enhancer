@@ -4,7 +4,7 @@
 // @name:zh-TW   FB 動態牆增強器 (Facebook 淨化與多欄)
 // @name:zh-CN   FB 动态墙增强器 (Facebook 净化与多栏)
 // @namespace    https://github.com/koeissr/fb-feed-enhancer
-// @version      2.2.0
+// @version      2.2.1
 // @description  Facebook Cleaner & Feed Enhancer: Compact flyout drawer toolbar, multi-column layout with virtualization scroll fix, Feed hover-to-play video, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall & transparent overlay bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:en     Facebook Cleaner & Feed Enhancer: Compact flyout drawer toolbar, multi-column layout with virtualization scroll fix, Feed hover-to-play video, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall & transparent overlay bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:zh-TW  Facebook 淨化與動態牆增強器：精簡分類橫拉抽屜工具列、多欄化樣式（防回捲修復）、動態牆影片懸浮播放、雙語進階設定彈窗、防切分頁重整、所有/最新留言切換與快捷鍵、Reels 播放隱藏標題、介面深度淨化、訪客去登入牆與透明遮罩、外連網址淨化、Meta AI/推薦區塊與關鍵字黑名單過濾。改編自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
@@ -29,8 +29,7 @@
   /* === MODULE: src/core/config.js === */
   const CONFIG = {
     ALLOWED_PATHS: [
-      /^\/$/,
-      /^\/\?filter=(all|favorites|friends|groups|pages)&sk=h_chr$/,
+      /^\/(?:\?.*)?$/,
       /^\/[^/]+\/posts\/.*$/,
       /^\/reel\/.*$/,
       /^\/search\/.*$/,
@@ -2246,7 +2245,7 @@
       return {
         ariaLabel: "FB Feed Enhancer 進階設定",
         title: "⚙️ FB 動態牆增強器 — 進階設定",
-        subtitle: "v2.2.0 控制中心｜所有設定即時生效並自動儲存",
+        subtitle: "v2.2.1 控制中心｜所有設定即時生效並自動儲存",
         closeTitle: "關閉設定視窗",
         commentSectionTitle: "留言排序偏好與快捷鍵",
         commentSortLabel: "預設留言排序目標",
@@ -2297,7 +2296,7 @@
     return {
       ariaLabel: "FB Feed Enhancer Advanced Settings",
       title: "⚙️ Facebook Feed Enhancer — Settings",
-      subtitle: "v2.2.0 Control Center | Changes apply immediately and auto-save",
+      subtitle: "v2.2.1 Control Center | Changes apply immediately and auto-save",
       closeTitle: "Close settings",
       commentSectionTitle: "Comment Sorting & Hotkeys",
       commentSortLabel: "Default comment sort target",
