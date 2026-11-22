@@ -1,16 +1,24 @@
 # Changelog
 
+## v2.0.2 (2026-11-22)
+
+### Added
+- **進階設定彈窗中／英自動語系切換（i18n）**：依 Facebook 頁面 `<html lang>` 與瀏覽器語系自動切換繁體中文或全英文選單、選項說明、輸入提示與按鈕文字。
+
+### Changed
+- 全面清理源碼、文件與驗證腳本中無意義的配色代稱字眼。
+
 ## v2.0.1 (2026-11-22)
 
 ### Changed
 - 補強 Userscript.Zone 與 Greasy Fork 檢索覆蓋：將主名稱 `@name` 補齊完整關鍵字 `Facebook`（`Facebook Feed Enhancer (FB Cleaner, Multi-Column & Reels)`），並新增 `@match https://web.facebook.com/*` 網域支援。
-- 同步更新雙語 `README.md` 完整收錄 v2.0 莫蘭迪設定彈窗、Reels 隱藏標題、介面深度淨化、訪客去登入牆、外連淨化、留言排序快捷鍵與關鍵字黑名單說明。
+- 同步更新雙語 `README.md` 完整收錄 v2.0 進階設定彈窗、Reels 隱藏標題、介面深度淨化、訪客去登入牆、外連淨化、留言排序快捷鍵與關鍵字黑名單說明。
 
 ## v2.0.0 (2026-11-22)
 
 ### Added
 - **模組化源碼 + 產出單檔架構**：將單體腳本拆解為 14 個模組（`src/core/*`、`src/modules/*`、`src/ui/*`、`src/main.js`），新增零外部依賴建置腳本 [build.mjs](file:///d:/Projects/fb-feed-enhancer/scripts/build.mjs) 產出根目錄 `fb-feed-enhancer.user.js`（維持 GitHub Raw 一鍵安裝）。
-- **莫蘭迪 ⚙️ 進階設定彈窗**：於工具列頂端新增 `⚙️` 設定入口，以低飽和莫蘭迪淺色系彈窗統一管理所有進階開關、留言排序偏好、關鍵字黑名單與一鍵重置，全面汰除舊暗黑背景與純黑按鈕。
+- **⚙️ 進階設定彈窗**：於工具列頂端新增 `⚙️` 設定入口，以柔和淺色系彈窗統一管理所有進階開關、留言排序偏好、關鍵字黑名單與一鍵重置，全面汰除舊暗黑背景與純黑按鈕。
 - **Phase 1 整合功能**：
   - Reels 播放時自動隱藏標題遮罩（暫停或移入滑鼠時恢復）。
   - 獨立介面深度乾淨化 CSS（右側欄、頂部商店頁籤、左側欄頁尾、限時動態／Reels 推薦區塊）。
@@ -23,7 +31,7 @@
 - 新增真實 Chrome Headless CDP 無 Mock 實體驗收腳本 [real_physical_verification_v2.mjs](file:///d:/Projects/fb-feed-enhancer/scripts/real_physical_verification_v2.mjs)。
 
 ### Changed
-- 左側浮動工具列改採莫蘭迪柔白半透明與鼠尾草綠啟用配色。
+- 左側浮動工具列改採柔白半透明與鼠尾草綠啟用配色。
 - 維持零外部網路權限邊界（僅使用 `GM_setValue`、`GM_getValue`、`unsafeWindow`）。
 
 ## v1.0.4 (2026-11-20)

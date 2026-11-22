@@ -7,7 +7,7 @@
 <a id="繁體中文"></a>
 ## 繁體中文
 
-一款專為 Facebook 電腦版（`www.facebook.com` / `web.facebook.com`）打造的 Tampermonkey / Violentmonkey 全方位淨化與增強腳本（零外部網路權限、模組化源碼建置單檔），完整支援中英文介面，整合**多欄排版與防回捲修復**、**莫蘭迪 ⚙️ 進階設定彈窗**、**防切分頁自動重整**、**所有／最新留言切換與快捷鍵**、**Reels 播放隱藏標題**、**介面深度乾淨化**、**訪客去登入牆與捲動解鎖**、**外連網址淨化**、**廣告／Meta AI／推薦區塊與關鍵字黑名單過濾**。
+一款專為 Facebook 電腦版（`www.facebook.com` / `web.facebook.com`）打造的 Tampermonkey / Violentmonkey 全方位淨化與增強腳本（零外部網路權限、模組化源碼建置單檔），完整支援中英文介面，整合**多欄排版與防回捲修復**、**雙語 ⚙️ 進階設定彈窗**、**防切分頁自動重整**、**所有／最新留言切換與快捷鍵**、**Reels 播放隱藏標題**、**介面深度乾淨化**、**訪客去登入牆與捲動解鎖**、**外連網址淨化**、**廣告／Meta AI／推薦區塊與關鍵字黑名單過濾**。
 
 > 本專案改編自 [Dxzy](https://greasyfork.org/scripts/535843) 的 **Facebook Worker's Wisdom DX**（MIT License），針對 2026 年新版 Facebook 介面進行模組化重構、異常修復與多項實戰功能整合。
 
@@ -22,7 +22,7 @@
 
 | 圖示 | 功能名稱 | 說明 |
 | :---: | :--- | :--- |
-| **⚙️** | **莫蘭迪進階設定彈窗** | 統一管理所有淨化與進階選項（Reels 隱藏標題、介面深度乾淨化、去登入牆、外連淨化、留言排序偏好、Meta AI／PYMK／關鍵字黑名單、一鍵重置） |
+| **⚙️** | **進階設定彈窗** | 統一管理所有淨化與進階選項（Reels 隱藏標題、介面深度乾淨化、去登入牆、外連淨化、留言排序偏好、Meta AI／PYMK／關鍵字黑名單、一鍵重置） |
 | **📐** | 側欄收縮 | 收合左側導覽欄，釋放更多橫向瀏覽空間 |
 | **🔒** | 防止自動重新整理 | 攔截切換分頁回來時 FB 首頁觸發的自動重整（不影響手動按 F5） |
 | **📋** | 留言排序自動切換 | 於貼文燈箱或單一貼文頁自動切換為「所有留言」或「最新留言」（可於 `⚙️` 設定偏好，燈箱內按 `Insert` 觸發、`Ctrl+Insert` 反轉切換） |
@@ -44,7 +44,7 @@
 
 ### 開發與建置（零外部相依）
 ```bash
-# 從 src/ 14 個模組建置根目錄單檔 fb-feed-enhancer.user.js
+# 從多個模組建置根目錄單檔 fb-feed-enhancer.user.js
 node scripts/build.mjs
 
 # 執行真實 Chrome Headless CDP 無 Mock 端到端實體驗收
@@ -68,7 +68,7 @@ An all-in-one desktop **Facebook Cleaner & Feed Enhancer** userscript (`www.face
 
 ### Key Features
 
-- **⚙️ Morandi Advanced Settings Modal**: Clean light-toned settings panel consolidating all cleaners, filters, comment sort preference, keyword blacklist, and one-click reset.
+- **⚙️ Bilingual Advanced Settings Modal**: Clean light-toned settings panel (auto-switches between English and Traditional Chinese) consolidating all cleaners, filters, comment sort preference, keyword blacklist, and one-click reset.
 - **🗂️ Multi-Column Layout + Virtualization Scroll Fix**: Customizable column count, max card height (`vh`), and width controls without clipping Facebook virtualized spacers.
 - **🔒 Prevent Auto-Refresh on Tab Switch**: Blocks Facebook's `visibilitychange` home feed reload without interfering with manual refresh (F5).
 - **📋 All / Newest Comments + Hotkeys**: Automatically switches comment sorting to **All comments** or **Newest** inside post dialogs and single-post pages; press `Insert` to trigger preferred sort or `Ctrl+Insert` to toggle between All and Newest.

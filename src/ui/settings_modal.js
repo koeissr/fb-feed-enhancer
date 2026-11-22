@@ -1,30 +1,106 @@
-  const SETTINGS_SECTIONS = [
-    {
-      title: "介面淨化與播放體驗（Phase 1）",
-      items: [
-        { key: "reelsTitleHide", label: "Reels 播放時自動隱藏標題遮罩", desc: "播放 Reels 時淡出標題文字，暫停或移入滑鼠時恢復" },
-        { key: "cleanRightRail", label: "隱藏右側欄（贊助／聯絡人／群聊）", desc: "移除右側欄區塊，釋放橫向瀏覽空間" },
-        { key: "cleanMarketplaceTab", label: "隱藏頂部「商店」頁籤", desc: "隱藏頂部導覽列的 Marketplace 入口" },
-        { key: "cleanLeftFooter", label: "隱藏左側欄頁尾條款", desc: "移除側邊欄底部服務條款與隱私連結" },
-        { key: "hideStoriesReels", label: "隱藏首頁限時動態與 Reels 推薦區塊", desc: "隱藏動態牆中的限時動態與短片推薦橫列" },
+  function isZhLocale() {
+    const docLang = (document.documentElement?.lang || "").toLowerCase();
+    if (docLang) return docLang.startsWith("zh");
+    const navLang = (navigator.language || "").toLowerCase();
+    return navLang.startsWith("zh");
+  }
+
+  function getSettingsI18n() {
+    if (isZhLocale()) {
+      return {
+        ariaLabel: "FB Feed Enhancer 進階設定",
+        title: "⚙️ FB 動態牆增強器 — 進階設定",
+        subtitle: "v2.0.2 控制中心｜所有設定即時生效並自動儲存",
+        closeTitle: "關閉設定視窗",
+        commentSectionTitle: "留言排序偏好與快捷鍵",
+        commentSortLabel: "預設留言排序目標",
+        commentSortDesc: "燈箱內按 Insert 觸發偏好排序，Ctrl+Insert 反轉切換（所有留言 ↔ 最新留言）",
+        optAll: "所有留言 (All)",
+        optNewest: "最新留言 (Newest)",
+        kwSectionTitle: "關鍵字黑名單（以逗號或換行分隔）",
+        kwPlaceholder: "例如：抽獎, 限時優惠, 業配文（輸入後點擊下方套用）",
+        kwCount: (n) => `目前規則：${n} 筆`,
+        kwApplied: (n, h) => `已套用：${n} 筆規則（已過濾 ${h} 則）`,
+        kwApplyBtn: "套用關鍵字",
+        resetBtn: "重置進階設定",
+        resetDone: "已重置為預設值",
+        doneBtn: "完成並關閉",
+        sections: [
+          {
+            title: "介面淨化與播放體驗",
+            items: [
+              { key: "reelsTitleHide", label: "Reels 播放時自動隱藏標題遮罩", desc: "播放 Reels 時淡出標題文字，暫停或移入滑鼠時恢復" },
+              { key: "cleanRightRail", label: "隱藏右側欄（贊助／聯絡人／群聊）", desc: "移除右側欄區塊，釋放橫向瀏覽空間" },
+              { key: "cleanMarketplaceTab", label: "隱藏頂部「商店」頁籤", desc: "隱藏頂部導覽列的 Marketplace 入口" },
+              { key: "cleanLeftFooter", label: "隱藏左側欄頁尾條款", desc: "移除側邊欄底部服務條款與隱私連結" },
+              { key: "hideStoriesReels", label: "隱藏首頁限時動態與 Reels 推薦區塊", desc: "隱藏動態牆中的限時動態與短片推薦橫列" },
+            ],
+          },
+          {
+            title: "訪客防護與網址淨化",
+            items: [
+              { key: "removeLoginWall", label: "訪客模式去登入牆與捲動解鎖", desc: "未登入瀏覽公開貼文時隱藏登入彈窗並恢復捲動" },
+              { key: "sanitizeLinks", label: "外連網址淨化（去跳轉與追蹤碼）", desc: "自動展開 l.facebook.com 跳轉並移除 fbclid 追蹤參數" },
+            ],
+          },
+          {
+            title: "內容淨化與黑名單過濾",
+            items: [
+              { key: "hideMetaAI", label: "隱藏 Meta AI 提示與 AI 標記卡片", desc: "以非破壞方式隱藏 Meta AI 推薦與詢問卡片" },
+              { key: "hidePYMK", label: "隱藏「你可能認識的人」區塊", desc: "過濾動態牆中的好友推薦卡片" },
+              { key: "keywordFilter", label: "啟用自訂關鍵字黑名單過濾", desc: "命中下方關鍵字之貼文自動隱藏（不破壞捲動）" },
+            ],
+          },
+        ],
+      };
+    }
+    return {
+      ariaLabel: "FB Feed Enhancer Advanced Settings",
+      title: "⚙️ Facebook Feed Enhancer — Settings",
+      subtitle: "v2.0.2 Control Center | Changes apply immediately and auto-save",
+      closeTitle: "Close settings",
+      commentSectionTitle: "Comment Sorting & Hotkeys",
+      commentSortLabel: "Default comment sort target",
+      commentSortDesc: "Press Insert inside a post dialog to trigger preferred sort, or Ctrl+Insert to toggle (All ↔ Newest)",
+      optAll: "All comments",
+      optNewest: "Newest comments",
+      kwSectionTitle: "Keyword Blacklist (comma or newline separated)",
+      kwPlaceholder: "e.g. giveaway, sponsored, promo (click Apply below)",
+      kwCount: (n) => `Active rules: ${n}`,
+      kwApplied: (n, h) => `Applied: ${n} rules (${h} hidden)`,
+      kwApplyBtn: "Apply Keywords",
+      resetBtn: "Reset Advanced Settings",
+      resetDone: "Reset to defaults",
+      doneBtn: "Done & Close",
+      sections: [
+        {
+          title: "UI Cleaner & Playback",
+          items: [
+            { key: "reelsTitleHide", label: "Auto-hide Reels title overlay during playback", desc: "Fades out Reels caption text while playing; restores on pause or hover" },
+            { key: "cleanRightRail", label: "Hide Right Rail (Sponsored / Contacts / Chats)", desc: "Removes the right sidebar to maximize feed width" },
+            { key: "cleanMarketplaceTab", label: "Hide top Marketplace tab", desc: "Hides the Marketplace shortcut in the top navigation bar" },
+            { key: "cleanLeftFooter", label: "Hide left sidebar legal footer", desc: "Removes Privacy / Terms footer links in the left sidebar" },
+            { key: "hideStoriesReels", label: "Hide Home Stories & Reels shelves", desc: "Hides Stories and Reels recommendation shelves on the home feed" },
+          ],
+        },
+        {
+          title: "Guest Protection & Link Sanitizer",
+          items: [
+            { key: "removeLoginWall", label: "Guest login-wall bypass & scroll unlock", desc: "Hides forced login popups and restores scrolling when logged out" },
+            { key: "sanitizeLinks", label: "Sanitize external links (unwrap & strip trackers)", desc: "Unwraps l.facebook.com redirects and strips fbclid / tracking params" },
+          ],
+        },
+        {
+          title: "Content Filters & Keyword Blacklist",
+          items: [
+            { key: "hideMetaAI", label: "Hide Meta AI prompts & AI-labeled cards", desc: "Non-destructively hides Meta AI suggestion and prompt cards" },
+            { key: "hidePYMK", label: 'Hide "People you may know" cards', desc: "Filters friend suggestion cards from the feed" },
+            { key: "keywordFilter", label: "Enable custom keyword blacklist filter", desc: "Hides posts matching the keywords below without breaking scroll" },
+          ],
+        },
       ],
-    },
-    {
-      title: "訪客防護與網址淨化（Phase 1）",
-      items: [
-        { key: "removeLoginWall", label: "訪客模式去登入牆與捲動解鎖", desc: "未登入瀏覽公開貼文時隱藏登入彈窗並恢復捲動" },
-        { key: "sanitizeLinks", label: "外連網址淨化（去跳轉與追蹤碼）", desc: "自動展開 l.facebook.com 跳轉並移除 fbclid 追蹤參數" },
-      ],
-    },
-    {
-      title: "內容淨化與黑名單過濾（Phase 2）",
-      items: [
-        { key: "hideMetaAI", label: "隱藏 Meta AI 提示與 AI 標記卡片", desc: "以非破壞方式隱藏 Meta AI 推薦與詢問卡片" },
-        { key: "hidePYMK", label: "隱藏「你可能認識的人」區塊", desc: "過濾動態牆中的好友推薦卡片" },
-        { key: "keywordFilter", label: "啟用自訂關鍵字黑名單過濾", desc: "命中下方關鍵字之貼文自動隱藏（不破壞捲動）" },
-      ],
-    },
-  ];
+    };
+  }
 
   function applySettingsChange(key) {
     if (key === "cleanRightRail" || key === "cleanMarketplaceTab" || key === "cleanLeftFooter" || key === "hideStoriesReels") {
@@ -90,15 +166,24 @@
   }
 
   function createSettingsModal() {
-    if (resources.settingsModal && resources.settingsModal.isConnected) return resources.settingsModal;
+    const currentLang = isZhLocale() ? "zh" : "en";
+    if (resources.settingsModal && resources.settingsModal.isConnected) {
+      if (resources.settingsModal.getAttribute("data-ffe-lang") === currentLang) {
+        return resources.settingsModal;
+      }
+      resources.settingsModal.remove();
+      resources.settingsModal = null;
+    }
     if (!document.body) return null;
 
+    const t = getSettingsI18n();
     const backdrop = document.createElement("div");
     backdrop.id = "ffe-settings-modal";
     backdrop.className = "ffe-modal-backdrop";
     backdrop.setAttribute("role", "dialog");
     backdrop.setAttribute("aria-modal", "true");
-    backdrop.setAttribute("aria-label", "FB Feed Enhancer 進階設定");
+    backdrop.setAttribute("aria-label", t.ariaLabel);
+    backdrop.setAttribute("data-ffe-lang", currentLang);
     backdrop.style.display = "none";
 
     const card = document.createElement("div");
@@ -110,10 +195,10 @@
     const titleWrap = document.createElement("div");
     const h2 = document.createElement("h2");
     h2.className = "ffe-modal-title";
-    h2.textContent = "⚙️ FB 動態牆增強器 — 進階設定";
+    h2.textContent = t.title;
     const sub = document.createElement("div");
     sub.className = "ffe-modal-subtitle";
-    sub.textContent = "v2.0.1 莫蘭迪控制中心｜所有設定即時生效並自動儲存";
+    sub.textContent = t.subtitle;
     titleWrap.appendChild(h2);
     titleWrap.appendChild(sub);
 
@@ -122,7 +207,7 @@
     closeBtn.id = "ffe-settings-close";
     closeBtn.className = "ffe-btn-icon";
     closeBtn.textContent = "✕";
-    closeBtn.title = "關閉設定視窗";
+    closeBtn.title = t.closeTitle;
     registerEventListener(closeBtn, "click", () => toggleSettingsModal(false));
 
     header.appendChild(titleWrap);
@@ -133,8 +218,8 @@
     const body = document.createElement("div");
     body.className = "ffe-modal-body";
 
-    for (let s = 0; s < SETTINGS_SECTIONS.length; s++) {
-      const sec = SETTINGS_SECTIONS[s];
+    for (let s = 0; s < t.sections.length; s++) {
+      const sec = t.sections[s];
       const sectionEl = document.createElement("div");
       sectionEl.className = "ffe-section";
       const secTitle = document.createElement("div");
@@ -176,12 +261,12 @@
       body.appendChild(sectionEl);
     }
 
-    // 留言排序偏好區塊（Phase 1 #8）
+    // 留言排序偏好區塊
     const commentSec = document.createElement("div");
     commentSec.className = "ffe-section";
     const commentTitle = document.createElement("div");
     commentTitle.className = "ffe-section-title";
-    commentTitle.textContent = "留言排序偏好與快捷鍵";
+    commentTitle.textContent = t.commentSectionTitle;
     commentSec.appendChild(commentTitle);
 
     const sortRow = document.createElement("div");
@@ -190,10 +275,10 @@
     sortInfo.className = "ffe-setting-info";
     const sortLabel = document.createElement("div");
     sortLabel.className = "ffe-setting-label";
-    sortLabel.textContent = "預設留言排序目標";
+    sortLabel.textContent = t.commentSortLabel;
     const sortDesc = document.createElement("div");
     sortDesc.className = "ffe-setting-desc";
-    sortDesc.textContent = "燈箱內按 Insert 觸發偏好排序，Ctrl+Insert 反轉切換（所有留言 ↔ 最新留言）";
+    sortDesc.textContent = t.commentSortDesc;
     sortInfo.appendChild(sortLabel);
     sortInfo.appendChild(sortDesc);
 
@@ -202,10 +287,10 @@
     sortSelect.className = "ffe-select";
     const optAll = document.createElement("option");
     optAll.value = "all";
-    optAll.textContent = "所有留言 (All)";
+    optAll.textContent = t.optAll;
     const optNewest = document.createElement("option");
     optNewest.value = "newest";
-    optNewest.textContent = "最新留言 (Newest)";
+    optNewest.textContent = t.optNewest;
     sortSelect.appendChild(optAll);
     sortSelect.appendChild(optNewest);
     sortSelect.value = state.settings.commentSortMode === "newest" ? "newest" : "all";
@@ -220,19 +305,19 @@
     commentSec.appendChild(sortRow);
     body.appendChild(commentSec);
 
-    // 關鍵字黑名單輸入區（Phase 2 #7）
+    // 關鍵字黑名單輸入區
     const kwSec = document.createElement("div");
     kwSec.className = "ffe-section";
     const kwTitle = document.createElement("div");
     kwTitle.className = "ffe-section-title";
-    kwTitle.textContent = "關鍵字黑名單（以逗號或換行分隔）";
+    kwTitle.textContent = t.kwSectionTitle;
     kwSec.appendChild(kwTitle);
 
     const kwArea = document.createElement("textarea");
     kwArea.id = "ffe-keyword-blacklist";
     kwArea.className = "ffe-textarea";
     kwArea.rows = 3;
-    kwArea.placeholder = "例如：抽獎, 限時優惠, 業配文（輸入後點擊下方套用）";
+    kwArea.placeholder = t.kwPlaceholder;
     kwArea.value = typeof state.settings.keywordBlacklist === "string" ? state.settings.keywordBlacklist : "";
 
     const kwActions = document.createElement("div");
@@ -240,19 +325,19 @@
     const kwStatus = document.createElement("span");
     kwStatus.id = "ffe-kw-status";
     kwStatus.className = "ffe-status-badge";
-    kwStatus.textContent = `目前規則：${parseKeywordBlacklist().length} 筆`;
+    kwStatus.textContent = t.kwCount(parseKeywordBlacklist().length);
 
     const applyKwBtn = document.createElement("button");
     applyKwBtn.type = "button";
     applyKwBtn.id = "ffe-apply-keywords";
     applyKwBtn.className = "ffe-btn-primary";
-    applyKwBtn.textContent = "套用關鍵字";
+    applyKwBtn.textContent = t.kwApplyBtn;
     registerEventListener(applyKwBtn, "click", () => {
       state.settings.keywordBlacklist = kwArea.value;
       GM_setValue("keywordBlacklist", kwArea.value);
       const count = parseKeywordBlacklist().length;
       const hidden = applyExtraContentFilters();
-      kwStatus.textContent = `已套用：${count} 筆規則（已過濾 ${hidden} 則）`;
+      kwStatus.textContent = t.kwApplied(count, hidden);
     });
 
     kwActions.appendChild(kwStatus);
@@ -270,17 +355,17 @@
     resetBtn.type = "button";
     resetBtn.id = "ffe-reset-settings";
     resetBtn.className = "ffe-btn-secondary";
-    resetBtn.textContent = "重置進階設定";
+    resetBtn.textContent = t.resetBtn;
     registerEventListener(resetBtn, "click", () => {
       resetAdvancedSettings();
-      kwStatus.textContent = "已重置為預設值";
+      kwStatus.textContent = t.resetDone;
     });
 
     const doneBtn = document.createElement("button");
     doneBtn.type = "button";
     doneBtn.id = "ffe-settings-done";
     doneBtn.className = "ffe-btn-primary";
-    doneBtn.textContent = "完成並關閉";
+    doneBtn.textContent = t.doneBtn;
     registerEventListener(doneBtn, "click", () => toggleSettingsModal(false));
 
     footer.appendChild(resetBtn);

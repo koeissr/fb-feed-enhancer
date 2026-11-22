@@ -122,11 +122,12 @@ function runStaticAudits(bundleCode) {
   assert.ok(!/\bXMLHttpRequest\b/.test(bundleCode), "嚴禁外部 XMLHttpRequest");
   console.log("  [PASS] 零外部網路權限與零外連 API 審計通過");
 
-  // 3. 莫蘭迪規範：舊暗黑背景與純黑按鈕零殘留
+  // 3. 淺色系視覺規範與舊暗黑寫法零殘留 + 無多餘配色代稱字眼
   assert.ok(!bundleCode.includes("rgba(10,14,24"), "工具列舊暗黑背景殘留");
   assert.ok(!bundleCode.includes('backgroundColor: "#000000"'), "小按鈕純黑背景殘留");
-  assert.ok(bundleCode.includes("#F7F8FA") && bundleCode.includes("#6B8E9F") && bundleCode.includes("#7D9D8B"), "缺少莫蘭迪色票");
-  console.log("  [PASS] 莫蘭迪淺色視覺規範與舊暗黑寫法零殘留通過");
+  assert.ok(bundleCode.includes("#F7F8FA") && bundleCode.includes("#6B8E9F") && bundleCode.includes("#7D9D8B"), "缺少淺色系標準色票");
+  assert.ok(!/莫蘭迪|莫兰迪|Morandi/i.test(bundleCode), "腳本產物不應包含多餘配色代稱字眼");
+  console.log("  [PASS] 淺色視覺規範、舊暗黑零殘留與無多餘字眼通過");
 
   // 4. "||" 假資料保底語法掃描
   const orMatches = bundleCode.match(/\|\|\s*['"][^'"]+['"]/g) || [];
@@ -256,9 +257,9 @@ async function main() {
     await cdp.send("Page.enable");
 
     // 等待頁面完全載入避免導覽競態
-    for (let i = 0; i < 20; i++) {
-      const ready = await cdp.eval(`document.readyState`);
-      if (ready === "complete") break;
+    for (let i = 0; i < 30; i++) {
+      const ready = await cdp.eval(`document.readyState === "complete" && !!document.getElementById("main-feed")`);
+      if (ready) break;
       await sleep(100);
     }
     // 確認 Viewport 與注入 Userscript 儲存介面（真實記憶體 Map，非業務邏輯 Mock）
@@ -279,7 +280,7 @@ async function main() {
 
     console.log("\n=== [2] 端到端垂直實體驗收 (Real Blink DOM & Computed Style) ===");
 
-    // --- W1 + W2: 工具列與莫蘭迪 ⚙️ 設定彈窗三聯斷言 + 閉環 ---
+    // --- W1 + W2: 工具列與 ⚙️ 設定彈窗三聯斷言 + 閉環 + 英文語系自動切換 ---
     const modalCycle = await cdp.eval(`(async () => {
       const btn = document.getElementById("ffe-settings-btn");
       if (!btn) return { err: "missing settings btn" };
@@ -289,10 +290,21 @@ async function main() {
       const openDisplay = getComputedStyle(modal).display;
       const cardBg = getComputedStyle(card).backgroundColor;
       const hasOpenClass = modal.classList.contains("ffe-modal-open");
+      const zhTitle = modal.querySelector(".ffe-modal-title").textContent;
       document.getElementById("ffe-settings-done").click();
       const closedDisplay = getComputedStyle(modal).display;
       const hasOpenClassAfter = modal.classList.contains("ffe-modal-open");
-      return { openDisplay, cardBg, hasOpenClass, closedDisplay, hasOpenClassAfter };
+
+      // 切換為英文頁面語系，驗證自動重建為英文介面
+      document.documentElement.lang = "en";
+      btn.click();
+      const enModal = document.getElementById("ffe-settings-modal");
+      const enLang = enModal.getAttribute("data-ffe-lang");
+      const enTitle = enModal.querySelector(".ffe-modal-title").textContent;
+      const enDoneText = document.getElementById("ffe-settings-done").textContent;
+      document.getElementById("ffe-settings-done").click();
+      document.documentElement.lang = "zh-TW";
+      return { openDisplay, cardBg, hasOpenClass, zhTitle, closedDisplay, hasOpenClassAfter, enLang, enTitle, enDoneText };
     })()`);
     if (cdp.exceptions.length > 0) {
       throw new Error(`Init Exceptions: ${JSON.stringify(cdp.exceptions)}`);
@@ -301,11 +313,14 @@ async function main() {
       throw new Error(`Modal cycle error: ${modalCycle.err}`);
     }
     assert.equal(modalCycle.openDisplay, "flex", "點擊 ⚙️ 後彈窗應顯示為 flex");
-    assert.equal(modalCycle.cardBg, "rgb(247, 248, 250)", "設定彈窗背景應為莫蘭迪柔白 #F7F8FA");
+    assert.equal(modalCycle.cardBg, "rgb(247, 248, 250)", "設定彈窗背景應為柔白 #F7F8FA");
     assert.equal(modalCycle.hasOpenClass, true, "開啟時應有 ffe-modal-open class");
     assert.equal(modalCycle.closedDisplay, "none", "關閉後彈窗應恢復 display: none");
     assert.equal(modalCycle.hasOpenClassAfter, false, "關閉後應移除 ffe-modal-open class");
-    console.log(`  [PASS] W2 莫蘭迪 ⚙️ 設定彈窗三聯斷言與開關閉環 (bg=${modalCycle.cardBg}, open=${modalCycle.openDisplay} -> closed=${modalCycle.closedDisplay})`);
+    assert.equal(modalCycle.enLang, "en", "英文頁面應自動切換為 en 語系");
+    assert.equal(modalCycle.enTitle, "⚙️ Facebook Feed Enhancer — Settings", "英文語系標題不符");
+    assert.equal(modalCycle.enDoneText, "Done & Close", "英文語系按鈕文字不符");
+    console.log(`  [PASS] W2 ⚙️ 設定彈窗三聯斷言、閉環與中英雙語切換 (bg=${modalCycle.cardBg}, zh="${modalCycle.zhTitle}", en="${modalCycle.enTitle}")`);
 
     // --- W6: 訪客去登入牆 + 捲動解鎖 + 外連網址淨化 ---
     const w6Result = await cdp.eval(`(() => {
