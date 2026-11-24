@@ -291,8 +291,10 @@
   }
   function expandNextPost() {
     const list = resources.observers.interactive ? visibleSeeMore : cachedQuery("seeMore", CONFIG.SEE_MORE_SELECTOR);
+    const hasActiveDialog = getActiveFbDialogs().length > 0;
     let n = 0;
     for (const el of list) {
+      if (hasActiveDialog && !el.closest('[role="dialog"]')) continue;
       if (!isPostSeeMore(el)) continue;
       if (isAdRoot(getPostRoot(el))) continue;
       if (!trySeeMore(el)) continue;
@@ -303,7 +305,14 @@
 
   function isSinglePostOrDialog(el) {
     if (!el || !el.isConnected) return false;
-    if (el.closest('[role="dialog"]')) return true;
+    if (isHiddenOrInert(el)) return false;
+    const dlg = el.closest('[role="dialog"]');
+    if (dlg) {
+      if (dlg.id === "ffe-settings-modal" || dlg.hasAttribute("data-ffe-login-wall")) return false;
+      return true;
+    }
+    if (getActiveFbDialogs().length > 0) return false;
+    if (isBackgroundFeedElement(el)) return false;
     const p = window.location.pathname;
     return (
       /^\/[^/]+\/posts\//.test(p) ||
@@ -319,6 +328,7 @@
     for (const btn of list) {
       if (!btn.isConnected) continue;
       if (!isSinglePostOrDialog(btn)) continue;
+      if (isNavigationLinkElement(btn)) continue;
       if (btn.getAttribute("aria-expanded") === "true") continue;
       if (isHashtagLink(btn)) continue;
       if (isAdRoot(getPostRoot(btn))) continue;
@@ -339,6 +349,7 @@
     for (const el of list) {
       if (!el.isConnected || replyExpanded.has(el)) continue;
       if (!isSinglePostOrDialog(el)) continue;
+      if (isNavigationLinkElement(el)) continue;
       if (!el.querySelector(CONFIG.REPLY_CHEVRON_SELECTOR)) continue;
       if (isAdRoot(getPostRoot(el))) continue;
       replyExpanded.add(el);
@@ -354,6 +365,7 @@
     for (const el of list) {
       if (!el.isConnected) continue;
       if (!isSinglePostOrDialog(el)) continue;
+      if (isNavigationLinkElement(el)) continue;
       if (el.querySelector("svg")) continue;
       const txt = (el.textContent || "").trim();
       if (!txt || !MORE_COMMENT_TEXT_RE.test(txt)) continue;
@@ -430,8 +442,9 @@
     return false;
   }
   function hideNextAd(t) {
+    if (getActiveFbDialogs().length > 0) return false;
     for (const root of visiblePosts) {
-      if (!root.isConnected) continue;
+      if (!root.isConnected || isHiddenOrInert(root)) continue;
       if (root.closest('[role="dialog"]')) continue;
       if (!isAdRoot(root)) continue;
       const last = adAttempts.get(root);

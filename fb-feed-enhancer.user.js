@@ -4,7 +4,7 @@
 // @name:zh-TW   FB 動態牆增強器 (Facebook 淨化與多欄)
 // @name:zh-CN   FB 动态墙增强器 (Facebook 净化与多栏)
 // @namespace    https://github.com/koeissr/fb-feed-enhancer
-// @version      2.2.1
+// @version      2.2.2
 // @description  Facebook Cleaner & Feed Enhancer: Compact flyout drawer toolbar, multi-column layout with virtualization scroll fix, Feed hover-to-play video, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall & transparent overlay bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:en     Facebook Cleaner & Feed Enhancer: Compact flyout drawer toolbar, multi-column layout with virtualization scroll fix, Feed hover-to-play video, bilingual settings modal, prevent auto-refresh, All/Newest comments + hotkeys, Reels title auto-hide, deep UI cleaner, guest login-wall & transparent overlay bypass, link sanitizer, Meta AI / PYMK & keyword blacklist filter. Based on "Facebook Worker's Wisdom DX" by Dxzy (MIT License).
 // @description:zh-TW  Facebook 淨化與動態牆增強器：精簡分類橫拉抽屜工具列、多欄化樣式（防回捲修復）、動態牆影片懸浮播放、雙語進階設定彈窗、防切分頁重整、所有/最新留言切換與快捷鍵、Reels 播放隱藏標題、介面深度淨化、訪客去登入牆與透明遮罩、外連網址淨化、Meta AI/推薦區塊與關鍵字黑名單過濾。改編自 Dxzy 之 Facebook Worker's Wisdom DX (MIT)。
@@ -93,7 +93,6 @@
     SCAN_TTL_MS: 500,
     DEFAULT_VOLUME: 0.2,
     DEFAULT_MAX_HEIGHT: 80,
-    DEFAULT_EXPAND_WIDTH: 50,
     DEFAULT_HOVER_PAD: 20,
     HOVER_PAD_STEP: 20,
     HOVER_PAD_MAX: 200,
@@ -105,7 +104,6 @@
     HEIGHT_STEP: 10,
     HEIGHT_MIN: 10,
     HEIGHT_MAX: 300,
-    EXPAND_WIDTH_STEP: 10,
     COLUMN_COUNT: 4,
     COLUMN_GAP: 15,
     MAX_ID_CACHE: 500,
@@ -299,366 +297,399 @@
   }
 
   /* === MODULE: src/core/dom_utils.js === */
-  function cachedQuery(key, selector) {
-    const c = domCache[key];
-    const now = performance.now();
-    if (c.els && now - c.t < CONFIG.CACHE_TTL_MS) return c.els;
-    c.els = document.querySelectorAll(selector);
-    c.t = now;
-    return c.els;
-  }
-  function invalidateCache() {
-    domCache.seeMore.els = null;
-    domCache.autoExpand.els = null;
-    domCache.commentAction.els = null;
-    domCache.likeAll.els = null;
-  }
-  function invalidateRects() {
-    rects = new WeakMap();
-    containers = new WeakMap();
-  }
-  function isAllowedPage() {
-    try {
-      const path = window.location.pathname + window.location.search;
-      for (let i = 0; i < CONFIG.ALLOWED_PATHS.length; i++) {
-        if (CONFIG.ALLOWED_PATHS[i].test(path)) return true;
-      }
-      return false;
-    } catch {
-      return false;
+function cachedQuery(key, selector) {
+  const c = domCache[key];
+  const now = performance.now();
+  if (c.els && now - c.t < CONFIG.CACHE_TTL_MS) return c.els;
+  c.els = document.querySelectorAll(selector);
+  c.t = now;
+  return c.els;
+}
+function invalidateCache() {
+  domCache.seeMore.els = null;
+  domCache.autoExpand.els = null;
+  domCache.commentAction.els = null;
+  domCache.likeAll.els = null;
+}
+function invalidateRects() {
+  rects = new WeakMap();
+  containers = new WeakMap();
+}
+function isAllowedPage() {
+  try {
+    const path = window.location.pathname + window.location.search;
+    for (let i = 0; i < CONFIG.ALLOWED_PATHS.length; i++) {
+      if (CONFIG.ALLOWED_PATHS[i].test(path)) return true;
     }
+    return false;
+  } catch {
+    return false;
   }
-  function inCommentScope(el) {
-    return !!(el && el.closest(CONFIG.COMMENT_LIKE_SELECTOR));
+}
+function inCommentScope(el) {
+  return !!(el && el.closest(CONFIG.COMMENT_LIKE_SELECTOR));
+}
+function isPostLike(el) {
+  return !!el && el.nodeType === 1 && el.matches(CONFIG.POST_LIKE_SELECTOR) && !inCommentScope(el);
+}
+function isPostBoundary(el) {
+  return (
+    el.matches(CONFIG.POST_ARTICLE_SELECTOR) ||
+    el.matches(CONFIG.POST_DATA_STORE_ID) ||
+    el.matches(CONFIG.POST_CARD_SELECTOR) ||
+    el.matches(CONFIG.FLEX_ITEM_SELECTOR)
+  );
+}
+function isHiddenOrInert(el) {
+  if (!el || el.nodeType !== 1) return true;
+  return !!el.closest('[aria-hidden="true"], [inert]');
+}
+function isNavigationLinkElement(el) {
+  if (!el || el.nodeType !== 1) return false;
+  if (el.tagName === "A" || el.getAttribute("role") === "link") return true;
+  return !!(el.closest("a[href]") || el.querySelector("a[href]"));
+}
+function getActiveFbDialogs() {
+  const dialogs = document.querySelectorAll('[role="dialog"]');
+  const active = [];
+  for (let i = 0; i < dialogs.length; i++) {
+    const d = dialogs[i];
+    if (!d.isConnected || d.id === "ffe-settings-modal") continue;
+    if (d.hasAttribute("data-ffe-login-wall") || d.getAttribute("aria-hidden") === "true") continue;
+    if (d.closest('[aria-hidden="true"], [inert]')) continue;
+    const st = window.getComputedStyle(d);
+    if (st.display === "none" || st.visibility === "hidden") continue;
+    active.push(d);
   }
-  function isPostLike(el) {
-    return !!el && el.nodeType === 1 && el.matches(CONFIG.POST_LIKE_SELECTOR) && !inCommentScope(el);
+  return active;
+}
+function isBackgroundFeedElement(el) {
+  if (!el || el.nodeType !== 1) return true;
+  if (isHiddenOrInert(el)) return true;
+  if (el.closest('[role="dialog"]')) return false;
+  if (getActiveFbDialogs().length > 0) return true;
+  if (el.closest('[role="feed"]')) return true;
+  if (el.closest("[aria-posinset]") && document.querySelectorAll("[aria-posinset]").length > 1) return true;
+  return false;
+}
+const SEE_MORE_TEXT_RE = /^(?:[….·\s]*)(查看更多|顯示更多|展开更多|显示更多|See more|Show more)(?:[….·\s]*)$/i;
+function isPostSeeMore(el) {
+  if (!el || el.nodeType !== 1 || !el.matches(CONFIG.SEE_MORE_SELECTOR)) return false;
+  if (isHiddenOrInert(el) || isNavigationLinkElement(el)) return false;
+  if (inCommentScope(el)) return false;
+  if (el.closest(CONFIG.POST_HEADER_SELECTOR)) return false;
+  const txt = (el.textContent || "").trim();
+  if (!txt || txt.length > 20 || !SEE_MORE_TEXT_RE.test(txt)) return false;
+  if (el.closest(CONFIG.STORY_MSG_SELECTOR)) return true;
+  const cached = seeScopeCache.get(el);
+  if (cached !== undefined) return cached;
+  let node = el.parentElement;
+  let level = 0;
+  let result = true;
+  while (node && node !== document.body && level < CONFIG.SEE_SCOPE_LEVELS) {
+    if (isPostBoundary(node) || node.querySelector(CONFIG.POST_LIKE_SELECTOR)) {
+      result = true;
+      break;
+    }
+    if (node.querySelector(CONFIG.COMMENT_LIKE_SELECTOR)) {
+      result = false;
+      break;
+    }
+    node = node.parentElement;
+    level++;
   }
-  function isPostBoundary(el) {
-    return (
-      el.matches(CONFIG.POST_ARTICLE_SELECTOR) ||
-      el.matches(CONFIG.POST_DATA_STORE_ID) ||
-      el.matches(CONFIG.POST_CARD_SELECTOR) ||
-      el.matches(CONFIG.FLEX_ITEM_SELECTOR)
-    );
-  }
-  const SEE_MORE_TEXT_RE = /^(?:[….·\s]*)(查看更多|顯示更多|展开更多|显示更多|See more|Show more)(?:[….·\s]*)$/i;
-  function isPostSeeMore(el) {
-    if (!el || el.nodeType !== 1 || !el.matches(CONFIG.SEE_MORE_SELECTOR)) return false;
-    if (inCommentScope(el)) return false;
-    if (el.closest(CONFIG.POST_HEADER_SELECTOR) || el.querySelector("a[href]")) return false;
-    const txt = (el.textContent || "").trim();
-    if (!txt || txt.length > 20 || !SEE_MORE_TEXT_RE.test(txt)) return false;
-    if (el.closest(CONFIG.STORY_MSG_SELECTOR)) return true;
-    const cached = seeScopeCache.get(el);
-    if (cached !== undefined) return cached;
+  seeScopeCache.set(el, result);
+  return result;
+}
+function commentActionKind(el) {
+  if (el.querySelector(CONFIG.REPLY_CHEVRON_SELECTOR)) return CAT_REPLY;
+  if (!el.querySelector("svg")) return CAT_MORE;
+  return 0;
+}
+function getPostRoot(el) {
+  if (!el || el.nodeType !== 1) return null;
+  const t = performance.now();
+  const cached = rootCache.get(el);
+  if (cached && (cached.root ? cached.root.isConnected : t - cached.t < CONFIG.ROOT_CACHE_TTL)) return cached.root;
+  let root =
+    el.closest(CONFIG.POST_CARD_SELECTOR) ||
+    el.closest(CONFIG.POST_DATA_STORE_ID) ||
+    el.closest(CONFIG.POST_ARTICLE_SELECTOR) ||
+    el.closest(CONFIG.FLEX_ITEM_SELECTOR) ||
+    el.closest(CONFIG.POST_VIRTUAL_SELECTOR) ||
+    null;
+  if (!root) {
     let node = el.parentElement;
     let level = 0;
-    let result = true;
-    while (node && node !== document.body && level < CONFIG.SEE_SCOPE_LEVELS) {
-      if (isPostBoundary(node) || node.querySelector(CONFIG.POST_LIKE_SELECTOR)) {
-        result = true;
-        break;
-      }
-      if (node.querySelector(CONFIG.COMMENT_LIKE_SELECTOR)) {
-        result = false;
+    while (node && node !== document.body && level < CONFIG.ROOT_FALLBACK_LEVELS) {
+      if (isPostBoundary(node) || node.querySelector(CONFIG.POST_HEADER_SELECTOR)) {
+        root = node;
         break;
       }
       node = node.parentElement;
       level++;
     }
-    seeScopeCache.set(el, result);
-    return result;
-  }
-  function commentActionKind(el) {
-    if (el.querySelector(CONFIG.REPLY_CHEVRON_SELECTOR)) return CAT_REPLY;
-    if (!el.querySelector("svg")) return CAT_MORE;
-    return 0;
-  }
-  function getPostRoot(el) {
-    if (!el || el.nodeType !== 1) return null;
-    const t = performance.now();
-    const cached = rootCache.get(el);
-    if (cached && (cached.root ? cached.root.isConnected : t - cached.t < CONFIG.ROOT_CACHE_TTL)) return cached.root;
-    let root =
-      el.closest(CONFIG.POST_CARD_SELECTOR) ||
-      el.closest(CONFIG.POST_DATA_STORE_ID) ||
-      el.closest(CONFIG.POST_ARTICLE_SELECTOR) ||
-      el.closest(CONFIG.FLEX_ITEM_SELECTOR) ||
-      el.closest(CONFIG.POST_VIRTUAL_SELECTOR) ||
-      null;
-    if (!root) {
-      let node = el.parentElement;
-      let level = 0;
-      while (node && node !== document.body && level < CONFIG.ROOT_FALLBACK_LEVELS) {
-        if (isPostBoundary(node) || node.querySelector(CONFIG.POST_HEADER_SELECTOR)) {
-          root = node;
-          break;
-        }
-        node = node.parentElement;
-        level++;
-      }
-      if (root && !isPostBoundary(root)) {
-        let up = root.parentElement;
-        let n = 0;
-        while (up && up !== document.body && n < CONFIG.ROOT_CLIMB_LEVELS) {
-          if (up.querySelectorAll(CONFIG.POST_HEADER_SELECTOR).length > 1) break;
-          root = up;
-          if (isPostBoundary(up)) break;
-          up = up.parentElement;
-          n++;
-        }
+    if (root && !isPostBoundary(root)) {
+      let up = root.parentElement;
+      let n = 0;
+      while (up && up !== document.body && n < CONFIG.ROOT_CLIMB_LEVELS) {
+        if (up.querySelectorAll(CONFIG.POST_HEADER_SELECTOR).length > 1) break;
+        root = up;
+        if (isPostBoundary(up)) break;
+        up = up.parentElement;
+        n++;
       }
     }
-    rootCache.set(el, { root, t });
-    return root;
   }
-  function postSignature(root) {
-    if (!root) return null;
-    const cached = postSigCache.get(root);
-    if (cached !== undefined) return cached;
-    let sig = null;
-    const author = root.querySelector(CONFIG.AUTHOR_LINK_SELECTOR);
-    const path = author ? (author.getAttribute("href") || "").split("?")[0] : "";
-    const link = root.querySelector(CONFIG.PERMALINK_SELECTOR);
-    let frag = "";
-    if (link) {
-      const href = link.getAttribute("href") || "";
-      const i = href.indexOf("#?");
-      if (i >= 0) frag = href.slice(i + 2);
+  rootCache.set(el, { root, t });
+  return root;
+}
+function postSignature(root) {
+  if (!root) return null;
+  const cached = postSigCache.get(root);
+  if (cached !== undefined) return cached;
+  let sig = null;
+  const author = root.querySelector(CONFIG.AUTHOR_LINK_SELECTOR);
+  const path = author ? (author.getAttribute("href") || "").split("?")[0] : "";
+  const link = root.querySelector(CONFIG.PERMALINK_SELECTOR);
+  let frag = "";
+  if (link) {
+    const href = link.getAttribute("href") || "";
+    const i = href.indexOf("#?");
+    if (i >= 0) frag = href.slice(i + 2);
+  }
+  if (frag) {
+    sig = `p:${path}#${frag}`;
+  } else {
+    const vid = root.querySelector("[data-video-id]")?.getAttribute("data-video-id");
+    if (path && vid) sig = `v:${path}|${vid}`;
+  }
+  postSigCache.set(root, sig);
+  return sig;
+}
+function seeLockKeys(el, root) {
+  const keys = [];
+  const sig = postSignature(root);
+  if (sig) keys.push(sig);
+  let node = el;
+  let level = 0;
+  while (node && node.nodeType === 1 && level < CONFIG.SEE_ID_LEVELS) {
+    const id = node.getAttribute("id");
+    if (id) {
+      if (node.querySelectorAll(CONFIG.POST_HEADER_SELECTOR).length <= 1) keys.push(`i:${id}`);
+      break;
     }
-    if (frag) {
-      sig = `p:${path}#${frag}`;
-    } else {
-      const vid = root.querySelector("[data-video-id]")?.getAttribute("data-video-id");
-      if (path && vid) sig = `v:${path}|${vid}`;
+    node = node.parentElement;
+    level++;
+  }
+  return keys;
+}
+function postKeyOf(el) {
+  const root = getPostRoot(el);
+  if (!root) return null;
+  const known = postKeys.get(root);
+  if (known) return known;
+  const sig = postSignature(root);
+  const store = root.getAttribute("data-store-id") || root.querySelector(CONFIG.POST_DATA_STORE_ID)?.getAttribute("data-store-id");
+  const labelled = root.getAttribute("aria-labelledby");
+  const key = sig || (store ? `s:${store}` : labelled ? `l:${labelled}` : `e:${++postSeq}`);
+  postKeys.set(root, key);
+  return key;
+}
+function postLikeOf(root) {
+  if (!root || !root.isConnected) return null;
+  const cached = postLikeCache.get(root);
+  if (cached && cached.isConnected && root.contains(cached)) return cached;
+  const list = root.querySelectorAll(CONFIG.POST_LIKE_SELECTOR);
+  for (let i = 0; i < list.length; i++) {
+    if (isPostLike(list[i])) {
+      postLikeCache.set(root, list[i]);
+      return list[i];
     }
-    postSigCache.set(root, sig);
-    return sig;
   }
-  function seeLockKeys(el, root) {
-    const keys = [];
-    const sig = postSignature(root);
-    if (sig) keys.push(sig);
-    let node = el;
-    let level = 0;
-    while (node && node.nodeType === 1 && level < CONFIG.SEE_ID_LEVELS) {
-      const id = node.getAttribute("id");
-      if (id) {
-        if (node.querySelectorAll(CONFIG.POST_HEADER_SELECTOR).length <= 1) keys.push(`i:${id}`);
-        break;
-      }
-      node = node.parentElement;
-      level++;
+  return null;
+}
+const CLOSE_DIALOG_ARIA_RE = /^(關閉|关闭|Close)$/i;
+function findHideButton(root) {
+  if (!root) return null;
+  const cached = hideCache.get(root);
+  if (cached && cached.isConnected && root.contains(cached)) return cached;
+  const icons = root.querySelectorAll(CONFIG.HIDE_ICON_SELECTOR);
+  for (let i = 0; i < icons.length; i++) {
+    const host = icons[i].closest(CONFIG.HIDE_HOST_SELECTOR);
+    if (host && root.contains(host)) {
+      const aria = (host.getAttribute("aria-label") || "").trim();
+      if (aria && CLOSE_DIALOG_ARIA_RE.test(aria)) continue;
+      hideCache.set(root, host);
+      return host;
     }
-    return keys;
   }
-  function postKeyOf(el) {
-    const root = getPostRoot(el);
-    if (!root) return null;
-    const known = postKeys.get(root);
-    if (known) return known;
-    const sig = postSignature(root);
-    const store = root.getAttribute("data-store-id") || root.querySelector(CONFIG.POST_DATA_STORE_ID)?.getAttribute("data-store-id");
-    const labelled = root.getAttribute("aria-labelledby");
-    const key = sig || (store ? `s:${store}` : labelled ? `l:${labelled}` : `e:${++postSeq}`);
-    postKeys.set(root, key);
-    return key;
+  return null;
+}
+function hasOrganicTime(root) {
+  const time = root.querySelector(CONFIG.TIME_LINK_SELECTOR);
+  if (!time) return false;
+  const msg = root.querySelector(CONFIG.STORY_MSG_SELECTOR);
+  if (!msg) return true;
+  return !!(time.compareDocumentPosition(msg) & Node.DOCUMENT_POSITION_FOLLOWING);
+}
+function hasIndexedAdRole(root) {
+  const list = root.querySelectorAll(CONFIG.AD_ROLE_SELECTOR);
+  for (let i = 0; i < list.length; i++) {
+    const role = list[i].getAttribute("data-ad-rendering-role") || "";
+    if (CONFIG.AD_ROLE_PATTERN.test(role)) return true;
   }
-  function postLikeOf(root) {
-    if (!root || !root.isConnected) return null;
-    const cached = postLikeCache.get(root);
-    if (cached && cached.isConnected && root.contains(cached)) return cached;
-    const list = root.querySelectorAll(CONFIG.POST_LIKE_SELECTOR);
-    for (let i = 0; i < list.length; i++) {
-      if (isPostLike(list[i])) {
-        postLikeCache.set(root, list[i]);
-        return list[i];
-      }
+  return false;
+}
+function hasSponsorChip(root) {
+  const meta = root.querySelector(CONFIG.META_ROW_SELECTOR);
+  if (!meta) return false;
+  if (!meta.querySelector(CONFIG.LABEL_CHIP_SELECTOR)) return false;
+  return !!findHideButton(root);
+}
+function evalAd(root) {
+  let v = !!root.querySelector(CONFIG.AD_HARD_SELECTOR);
+  if (!v && !hasOrganicTime(root)) {
+    v = hasIndexedAdRole(root);
+    if (!v) v = hasSponsorChip(root);
+    if (!v && CONFIG.HIDE_SUGGESTED) v = !!root.querySelector(CONFIG.SUGGEST_ITEM_SELECTOR);
+    if (!v && CONFIG.HIDE_UNLABELED) {
+      v = !!root.querySelector(CONFIG.CLIPPED_LABEL_SELECTOR) && !!findHideButton(root);
     }
-    return null;
   }
-  const CLOSE_DIALOG_ARIA_RE = /^(關閉|关闭|Close)$/i;
-  function findHideButton(root) {
-    if (!root) return null;
-    const cached = hideCache.get(root);
-    if (cached && cached.isConnected && root.contains(cached)) return cached;
-    const icons = root.querySelectorAll(CONFIG.HIDE_ICON_SELECTOR);
-    for (let i = 0; i < icons.length; i++) {
-      const host = icons[i].closest(CONFIG.HIDE_HOST_SELECTOR);
-      if (host && root.contains(host)) {
-        const aria = (host.getAttribute("aria-label") || "").trim();
-        if (aria && CLOSE_DIALOG_ARIA_RE.test(aria)) continue;
-        hideCache.set(root, host);
-        return host;
-      }
+  return v;
+}
+function adInfo(root) {
+  const t = performance.now();
+  let info = adCache.get(root);
+  if (!info) {
+    info = { first: t, t: -1e9, v: false };
+    adCache.set(root, info);
+  }
+  if (!info.v && t - info.t >= CONFIG.AD_CACHE_TTL) {
+    info.v = evalAd(root);
+    info.t = t;
+  }
+  return info;
+}
+function isAdRoot(root) {
+  if (!root) return false;
+  return adInfo(root).v;
+}
+function isOrganicReady(root) {
+  if (!root || !root.isConnected) return false;
+  const info = adInfo(root);
+  if (info.v) return false;
+  if (performance.now() - info.first < CONFIG.AD_SETTLE_MS) return false;
+  if (!root.querySelector(CONFIG.POST_HEADER_SELECTOR) && !findHideButton(root)) return false;
+  return true;
+}
+function isHashtagLink(el) {
+  if (!el || el.nodeType !== 1) return false;
+  if (el.tagName !== "A" && el.getAttribute("role") !== "link") return false;
+  const txt = (el.textContent || "").trim();
+  return txt.length > 0 && txt.charAt(0) === "#";
+}
+function safeClick(el) {
+  if (el && el.isConnected) el.click();
+}
+function markScroll(e) {
+  state.scrollT = performance.now();
+  state.scrolling = true;
+  const target = e ? e.target : null;
+  if (!target || target === document || target === document.documentElement || target === document.body) {
+    pageScroll.x = window.scrollX;
+    pageScroll.y = window.scrollY;
+    return;
+  }
+  if (target.nodeType !== 1) return;
+  let rec = scrollOffsets.get(target);
+  if (!rec) {
+    rec = { x: 0, y: 0 };
+    scrollOffsets.set(target, rec);
+  }
+  rec.x = target.scrollLeft;
+  rec.y = target.scrollTop;
+}
+function markScrollEnd(e) {
+  markScroll(e);
+  state.scrolling = false;
+  pump(true);
+}
+function isScrolling(t) {
+  return state.scrolling && t - state.scrollT < CONFIG.SCROLL_GATE_MS;
+}
+function containerOf(el) {
+  if (containers.has(el)) return containers.get(el);
+  const c = state.buttons.columns ? el.closest(CONFIG.FLEX_ITEM_SELECTOR) : null;
+  containers.set(el, c);
+  return c;
+}
+function storeRect(el, b, t) {
+  let r = rects.get(el);
+  if (!r) {
+    r = { left: 0, top: 0, w: 0, h: 0, px: 0, py: 0, cx: 0, cy: 0, ts: -1, req: 0 };
+    rects.set(el, r);
+  }
+  const cont = containerOf(el);
+  const s = cont ? scrollOffsets.get(cont) : null;
+  r.left = b.left;
+  r.top = b.top;
+  r.w = b.width;
+  r.h = b.height;
+  r.px = pageScroll.x;
+  r.py = pageScroll.y;
+  r.cx = s ? s.x : 0;
+  r.cy = s ? s.y : 0;
+  r.ts = t;
+}
+function requestRect(el, t) {
+  const io = resources.observers.interactive;
+  if (!io || !el.isConnected) return;
+  const r = rects.get(el);
+  if (r && t - r.req < CONFIG.RECT_REQUEST_MS) return;
+  io.unobserve(el);
+  io.observe(el);
+  if (r) {
+    r.req = t;
+    return;
+  }
+  rects.set(el, { left: 0, top: 0, w: 0, h: 0, px: 0, py: 0, cx: 0, cy: 0, ts: -1, req: t });
+}
+function pointerDistanceSq(el, x, y, t) {
+  const r = rects.get(el);
+  if (!r || r.ts < 0) {
+    requestRect(el, t);
+    return Infinity;
+  }
+  if (t - r.ts > CONFIG.RECT_REFRESH_MS) requestRect(el, t);
+  if (r.w <= 0 || r.h <= 0) return Infinity;
+  let dx = pageScroll.x - r.px;
+  let dy = pageScroll.y - r.py;
+  const cont = containerOf(el);
+  if (cont) {
+    const s = scrollOffsets.get(cont);
+    if (s) {
+      dx += s.x - r.cx;
+      dy += s.y - r.cy;
     }
-    return null;
   }
-  function hasOrganicTime(root) {
-    const time = root.querySelector(CONFIG.TIME_LINK_SELECTOR);
-    if (!time) return false;
-    const msg = root.querySelector(CONFIG.STORY_MSG_SELECTOR);
-    if (!msg) return true;
-    return !!(time.compareDocumentPosition(msg) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const left = r.left - dx;
+  const top = r.top - dy;
+  const ox = Math.max(left - x, 0, x - (left + r.w));
+  const oy = Math.max(top - y, 0, y - (top + r.h));
+  return ox * ox + oy * oy;
+}
+function occupiedByControl(target) {
+  let node = target;
+  let level = 0;
+  while (node && node.nodeType === 1 && level <= 2) {
+    if (node.matches(CONTROL_GUARD)) return true;
+    node = node.parentElement;
+    level++;
   }
-  function hasIndexedAdRole(root) {
-    const list = root.querySelectorAll(CONFIG.AD_ROLE_SELECTOR);
-    for (let i = 0; i < list.length; i++) {
-      const role = list[i].getAttribute("data-ad-rendering-role") || "";
-      if (CONFIG.AD_ROLE_PATTERN.test(role)) return true;
-    }
-    return false;
-  }
-  function hasSponsorChip(root) {
-    const meta = root.querySelector(CONFIG.META_ROW_SELECTOR);
-    if (!meta) return false;
-    if (!meta.querySelector(CONFIG.LABEL_CHIP_SELECTOR)) return false;
-    return !!findHideButton(root);
-  }
-  function evalAd(root) {
-    let v = !!root.querySelector(CONFIG.AD_HARD_SELECTOR);
-    if (!v && !hasOrganicTime(root)) {
-      v = hasIndexedAdRole(root);
-      if (!v) v = hasSponsorChip(root);
-      if (!v && CONFIG.HIDE_SUGGESTED) v = !!root.querySelector(CONFIG.SUGGEST_ITEM_SELECTOR);
-      if (!v && CONFIG.HIDE_UNLABELED) {
-        v = !!root.querySelector(CONFIG.CLIPPED_LABEL_SELECTOR) && !!findHideButton(root);
-      }
-    }
-    return v;
-  }
-  function adInfo(root) {
-    const t = performance.now();
-    let info = adCache.get(root);
-    if (!info) {
-      info = { first: t, t: -1e9, v: false };
-      adCache.set(root, info);
-    }
-    if (!info.v && t - info.t >= CONFIG.AD_CACHE_TTL) {
-      info.v = evalAd(root);
-      info.t = t;
-    }
-    return info;
-  }
-  function isAdRoot(root) {
-    if (!root) return false;
-    return adInfo(root).v;
-  }
-  function isOrganicReady(root) {
-    if (!root || !root.isConnected) return false;
-    const info = adInfo(root);
-    if (info.v) return false;
-    if (performance.now() - info.first < CONFIG.AD_SETTLE_MS) return false;
-    if (!root.querySelector(CONFIG.POST_HEADER_SELECTOR) && !findHideButton(root)) return false;
-    return true;
-  }
-  function isHashtagLink(el) {
-    if (!el || el.nodeType !== 1) return false;
-    if (el.tagName !== "A" && el.getAttribute("role") !== "link") return false;
-    const txt = (el.textContent || "").trim();
-    return txt.length > 0 && txt.charAt(0) === "#";
-  }
-  function safeClick(el) {
-    if (el && el.isConnected) el.click();
-  }
-  function markScroll(e) {
-    state.scrollT = performance.now();
-    state.scrolling = true;
-    const target = e ? e.target : null;
-    if (!target || target === document || target === document.documentElement || target === document.body) {
-      pageScroll.x = window.scrollX;
-      pageScroll.y = window.scrollY;
-      return;
-    }
-    if (target.nodeType !== 1) return;
-    let rec = scrollOffsets.get(target);
-    if (!rec) {
-      rec = { x: 0, y: 0 };
-      scrollOffsets.set(target, rec);
-    }
-    rec.x = target.scrollLeft;
-    rec.y = target.scrollTop;
-  }
-  function markScrollEnd(e) {
-    markScroll(e);
-    state.scrolling = false;
-    pump(true);
-  }
-  function isScrolling(t) {
-    return state.scrolling && t - state.scrollT < CONFIG.SCROLL_GATE_MS;
-  }
-  function containerOf(el) {
-    if (containers.has(el)) return containers.get(el);
-    const c = state.buttons.columns ? el.closest(CONFIG.FLEX_ITEM_SELECTOR) : null;
-    containers.set(el, c);
-    return c;
-  }
-  function storeRect(el, b, t) {
-    let r = rects.get(el);
-    if (!r) {
-      r = { left: 0, top: 0, w: 0, h: 0, px: 0, py: 0, cx: 0, cy: 0, ts: -1, req: 0 };
-      rects.set(el, r);
-    }
-    const cont = containerOf(el);
-    const s = cont ? scrollOffsets.get(cont) : null;
-    r.left = b.left;
-    r.top = b.top;
-    r.w = b.width;
-    r.h = b.height;
-    r.px = pageScroll.x;
-    r.py = pageScroll.y;
-    r.cx = s ? s.x : 0;
-    r.cy = s ? s.y : 0;
-    r.ts = t;
-  }
-  function requestRect(el, t) {
-    const io = resources.observers.interactive;
-    if (!io || !el.isConnected) return;
-    const r = rects.get(el);
-    if (r && t - r.req < CONFIG.RECT_REQUEST_MS) return;
-    io.unobserve(el);
-    io.observe(el);
-    if (r) {
-      r.req = t;
-      return;
-    }
-    rects.set(el, { left: 0, top: 0, w: 0, h: 0, px: 0, py: 0, cx: 0, cy: 0, ts: -1, req: t });
-  }
-  function pointerDistanceSq(el, x, y, t) {
-    const r = rects.get(el);
-    if (!r || r.ts < 0) {
-      requestRect(el, t);
-      return Infinity;
-    }
-    if (t - r.ts > CONFIG.RECT_REFRESH_MS) requestRect(el, t);
-    if (r.w <= 0 || r.h <= 0) return Infinity;
-    let dx = pageScroll.x - r.px;
-    let dy = pageScroll.y - r.py;
-    const cont = containerOf(el);
-    if (cont) {
-      const s = scrollOffsets.get(cont);
-      if (s) {
-        dx += s.x - r.cx;
-        dy += s.y - r.cy;
-      }
-    }
-    const left = r.left - dx;
-    const top = r.top - dy;
-    const ox = Math.max(left - x, 0, x - (left + r.w));
-    const oy = Math.max(top - y, 0, y - (top + r.h));
-    return ox * ox + oy * oy;
-  }
-  function occupiedByControl(target) {
-    let node = target;
-    let level = 0;
-    while (node && node.nodeType === 1 && level <= 2) {
-      if (node.matches(CONTROL_GUARD)) return true;
-      node = node.parentElement;
-      level++;
-    }
-    return false;
-  }
+  return false;
+}
 
   /* === MODULE: src/modules/scroll_recovery.js === */
   let ioHookInstalled = false;
@@ -1414,109 +1445,108 @@
   }
 
   /* === MODULE: src/modules/comments_control.js === */
-  const commentExpandCount = new WeakMap();
-  const COMMENT_EXPAND_MAX = 3;
-  const switchedCommentScopes = new WeakSet();
-  const switchedCommentPaths = new Set();
-  const COMMENT_SORT_TRIGGER_RE = /^(最相關|最相關留言|熱門留言|最相关|最相关评论|热门评论|所有留言|全部留言|最新留言|由新到舊|Most relevant|Most relevant comments|Top comments|All comments|Newest|Most recent)$/i;
-  const COMMENT_SORT_DEFAULT_RE = /^(最相關|最相關留言|熱門留言|最相关|最相关评论|热门评论|Most relevant|Most relevant comments|Top comments)$/i;
-  const ALL_COMMENTS_OPTION_RE = /^(所有留言|全部留言|全部评论|所有评论|All comments)$/i;
-  const NEWEST_COMMENTS_OPTION_RE = /^(最新留言|由新到舊|最新评论|由新到旧|Newest|Most recent)$/i;
-  const MORE_COMMENT_TEXT_RE = /(查看更多留言|查看先前的留言|檢視更多留言|查看全部|檢視全部|則回覆|查看更多评论|查看之前的评论|条回复|View more comments|View previous comments|View all \d+ comments|more replies|View \d+ more)/i;
-  const LIKE_ARIA_ALLOW_RE = /(讚|赞|Like)/i;
-  const LIKE_ARIA_DENY_RE = /(取消|移除|Unlike|Remove)/i;
-  let allCommentsLastAt = -1e9;
-  let allCommentsHoldUntil = -1e9;
-  let preventRefreshBound = false;
+const commentExpandCount = new WeakMap();
+const COMMENT_EXPAND_MAX = 3;
+const switchedCommentScopes = new WeakSet();
+const switchedCommentPaths = new Set();
+const COMMENT_SORT_TRIGGER_RE = /^(最相關|最相關留言|熱門留言|最相关|最相关评论|热门评论|所有留言|全部留言|最新留言|由新到舊|Most relevant|Most relevant comments|Top comments|All comments|Newest|Most recent)$/i;
+const COMMENT_SORT_DEFAULT_RE = /^(最相關|最相關留言|熱門留言|最相关|最相关评论|热门评论|Most relevant|Most relevant comments|Top comments)$/i;
+const ALL_COMMENTS_OPTION_RE = /^(所有留言|全部留言|全部评论|所有评论|All comments)$/i;
+const NEWEST_COMMENTS_OPTION_RE = /^(最新留言|由新到舊|最新评论|由新到旧|Newest|Most recent)$/i;
+const MORE_COMMENT_TEXT_RE = /(查看更多留言|查看先前的留言|檢視更多留言|查看全部|檢視全部|則回覆|查看更多评论|查看之前的评论|条回复|View more comments|View previous comments|View all \d+ comments|more replies|View \d+ more)/i;
+const LIKE_ARIA_ALLOW_RE = /(讚|赞|Like)/i;
+const LIKE_ARIA_DENY_RE = /(取消|移除|Unlike|Remove)/i;
+let allCommentsLastAt = -1e9;
+let allCommentsHoldUntil = -1e9;
+let preventRefreshBound = false;
 
-  function isHomeFeedPath() {
-    const p = window.location.pathname;
-    return p === "/" || p === "";
-  }
+function isHomeFeedPath() {
+  const p = window.location.pathname;
+  return p === "/" || p === "";
+}
 
-  function setupPreventRefresh() {
-    if (preventRefreshBound) return;
-    preventRefreshBound = true;
-    const blockVisibility = (e) => {
-      if (!state.buttons.preventRefresh || !isHomeFeedPath()) return;
-      e.stopImmediatePropagation();
-      if (!document.hidden && state.initialized) {
-        onVisibility();
-      }
-    };
-    document.addEventListener("visibilitychange", blockVisibility, true);
-    document.addEventListener("webkitvisibilitychange", blockVisibility, true);
-  }
-
-  function switchToAllComments(forceMode = null) {
-    const isForced = forceMode === "all" || forceMode === "newest";
-    if (!isForced && !state.buttons.allComments) return 0;
-    const targetMode = isForced ? forceMode : (state.settings.commentSortMode === "newest" ? "newest" : "all");
-    const targetOptionRe = targetMode === "newest" ? NEWEST_COMMENTS_OPTION_RE : ALL_COMMENTS_OPTION_RE;
-    const triggerRe = isForced ? COMMENT_SORT_TRIGGER_RE : COMMENT_SORT_DEFAULT_RE;
-
-    const t = performance.now();
-    if (!isForced && t - allCommentsLastAt < 1200) return 0;
-    const scopes = [];
-    const dialogs = document.querySelectorAll('[role="dialog"]');
-    for (let i = 0; i < dialogs.length; i++) {
-      if (dialogs[i].isConnected && dialogs[i].id !== "ffe-settings-modal") {
-        if (isForced || !switchedCommentScopes.has(dialogs[i])) {
-          scopes.push({ el: dialogs[i], path: null });
-        }
-      }
+function setupPreventRefresh() {
+  if (preventRefreshBound) return;
+  preventRefreshBound = true;
+  const blockVisibility = (e) => {
+    if (!state.buttons.preventRefresh || !isHomeFeedPath()) return;
+    e.stopImmediatePropagation();
+    if (!document.hidden && state.initialized) {
+      onVisibility();
     }
-    const curPath = window.location.pathname;
-    if (!scopes.length && isSinglePostOrDialog(document.body)) {
-      if (isForced || !switchedCommentPaths.has(curPath)) {
-        scopes.push({ el: document.body, path: curPath });
-      }
+  };
+  document.addEventListener("visibilitychange", blockVisibility, true);
+  document.addEventListener("webkitvisibilitychange", blockVisibility, true);
+}
+
+function switchToAllComments(forceMode = null) {
+  const isForced = forceMode === "all" || forceMode === "newest";
+  if (!isForced && !state.buttons.allComments) return 0;
+  const targetMode = isForced ? forceMode : (state.settings.commentSortMode === "newest" ? "newest" : "all");
+  const targetOptionRe = targetMode === "newest" ? NEWEST_COMMENTS_OPTION_RE : ALL_COMMENTS_OPTION_RE;
+  const triggerRe = isForced ? COMMENT_SORT_TRIGGER_RE : COMMENT_SORT_DEFAULT_RE;
+
+  const t = performance.now();
+  if (!isForced && t - allCommentsLastAt < 1200) return 0;
+  const scopes = [];
+  const dialogs = getActiveFbDialogs();
+  for (let i = 0; i < dialogs.length; i++) {
+    if (isForced || !switchedCommentScopes.has(dialogs[i])) {
+      scopes.push({ el: dialogs[i], path: null });
     }
-    for (let s = 0; s < scopes.length; s++) {
-      const { el: scope, path } = scopes[s];
-      const buttons = scope.querySelectorAll('div[role="button"]');
-      for (let i = 0; i < buttons.length; i++) {
-        const btn = buttons[i];
-        if (!btn.isConnected) continue;
-        const txt = (btn.textContent || "").trim();
-        if (!txt || txt.length > 24 || !triggerRe.test(txt)) continue;
-        if (path) {
-          switchedCommentPaths.add(path);
-          trimSet(switchedCommentPaths, 200);
-        } else {
-          switchedCommentScopes.add(scope);
-        }
-        allCommentsLastAt = t;
-        allCommentsHoldUntil = t + 350;
-        safeClick(btn);
-        setTimeout(() => {
-          const menuItems = document.querySelectorAll('[role="menuitem"],[role="menuitemradio"]');
-          for (let j = 0; j < menuItems.length; j++) {
-            const item = menuItems[j];
-            if (!item.isConnected) continue;
-            const firstLine = ((item.innerText || item.textContent || "").split("\n")[0] || "").trim();
-            if (targetOptionRe.test(firstLine)) {
-              safeClick(item);
-              break;
-            }
+  }
+  const curPath = window.location.pathname + window.location.search;
+  if (!scopes.length && dialogs.length === 0 && isSinglePostOrDialog(document.body)) {
+    if (isForced || !switchedCommentPaths.has(curPath)) {
+      scopes.push({ el: document.body, path: curPath });
+    }
+  }
+  for (let s = 0; s < scopes.length; s++) {
+    const { el: scope, path } = scopes[s];
+    const buttons = scope.querySelectorAll('div[role="button"]');
+    for (let i = 0; i < buttons.length; i++) {
+      const btn = buttons[i];
+      if (!btn.isConnected || isHiddenOrInert(btn) || isNavigationLinkElement(btn)) continue;
+      if (path && isBackgroundFeedElement(btn)) continue;
+      const txt = (btn.textContent || "").trim();
+      if (!txt || txt.length > 24 || !triggerRe.test(txt)) continue;
+      if (path) {
+        switchedCommentPaths.add(path);
+        trimSet(switchedCommentPaths, 200);
+      } else {
+        switchedCommentScopes.add(scope);
+      }
+      allCommentsLastAt = t;
+      allCommentsHoldUntil = t + 350;
+      safeClick(btn);
+      setTimeout(() => {
+        const menuItems = document.querySelectorAll('[role="menuitem"],[role="menuitemradio"]');
+        for (let j = 0; j < menuItems.length; j++) {
+          const item = menuItems[j];
+          if (!item.isConnected) continue;
+          const firstLine = ((item.innerText || item.textContent || "").split("\n")[0] || "").trim();
+          if (targetOptionRe.test(firstLine)) {
+            safeClick(item);
+            break;
           }
-        }, 180);
-        return 1;
-      }
+        }
+      }, 180);
+      return 1;
     }
-    return 0;
   }
+  return 0;
+}
 
-  function handleCommentSortHotkey(e) {
-    if (!e || e.key !== "Insert") return;
-    const activeTag = document.activeElement?.tagName;
-    if (activeTag === "INPUT" || activeTag === "TEXTAREA" || document.activeElement?.isContentEditable) return;
-    const baseMode = state.settings.commentSortMode === "newest" ? "newest" : "all";
-    const targetMode = e.ctrlKey ? (baseMode === "all" ? "newest" : "all") : baseMode;
-    if (switchToAllComments(targetMode)) {
-      e.preventDefault();
-    }
+function handleCommentSortHotkey(e) {
+  if (!e || e.key !== "Insert") return;
+  const activeTag = document.activeElement?.tagName;
+  if (activeTag === "INPUT" || activeTag === "TEXTAREA" || document.activeElement?.isContentEditable) return;
+  const baseMode = state.settings.commentSortMode === "newest" ? "newest" : "all";
+  const targetMode = e.ctrlKey ? (baseMode === "all" ? "newest" : "all") : baseMode;
+  if (switchToAllComments(targetMode)) {
+    e.preventDefault();
   }
+}
 
   /* === MODULE: src/modules/feed_engine.js === */
   function scanBucket(node, t, wantSee, wantLike) {
@@ -1812,8 +1842,10 @@
   }
   function expandNextPost() {
     const list = resources.observers.interactive ? visibleSeeMore : cachedQuery("seeMore", CONFIG.SEE_MORE_SELECTOR);
+    const hasActiveDialog = getActiveFbDialogs().length > 0;
     let n = 0;
     for (const el of list) {
+      if (hasActiveDialog && !el.closest('[role="dialog"]')) continue;
       if (!isPostSeeMore(el)) continue;
       if (isAdRoot(getPostRoot(el))) continue;
       if (!trySeeMore(el)) continue;
@@ -1824,7 +1856,14 @@
 
   function isSinglePostOrDialog(el) {
     if (!el || !el.isConnected) return false;
-    if (el.closest('[role="dialog"]')) return true;
+    if (isHiddenOrInert(el)) return false;
+    const dlg = el.closest('[role="dialog"]');
+    if (dlg) {
+      if (dlg.id === "ffe-settings-modal" || dlg.hasAttribute("data-ffe-login-wall")) return false;
+      return true;
+    }
+    if (getActiveFbDialogs().length > 0) return false;
+    if (isBackgroundFeedElement(el)) return false;
     const p = window.location.pathname;
     return (
       /^\/[^/]+\/posts\//.test(p) ||
@@ -1840,6 +1879,7 @@
     for (const btn of list) {
       if (!btn.isConnected) continue;
       if (!isSinglePostOrDialog(btn)) continue;
+      if (isNavigationLinkElement(btn)) continue;
       if (btn.getAttribute("aria-expanded") === "true") continue;
       if (isHashtagLink(btn)) continue;
       if (isAdRoot(getPostRoot(btn))) continue;
@@ -1860,6 +1900,7 @@
     for (const el of list) {
       if (!el.isConnected || replyExpanded.has(el)) continue;
       if (!isSinglePostOrDialog(el)) continue;
+      if (isNavigationLinkElement(el)) continue;
       if (!el.querySelector(CONFIG.REPLY_CHEVRON_SELECTOR)) continue;
       if (isAdRoot(getPostRoot(el))) continue;
       replyExpanded.add(el);
@@ -1875,6 +1916,7 @@
     for (const el of list) {
       if (!el.isConnected) continue;
       if (!isSinglePostOrDialog(el)) continue;
+      if (isNavigationLinkElement(el)) continue;
       if (el.querySelector("svg")) continue;
       const txt = (el.textContent || "").trim();
       if (!txt || !MORE_COMMENT_TEXT_RE.test(txt)) continue;
@@ -1951,8 +1993,9 @@
     return false;
   }
   function hideNextAd(t) {
+    if (getActiveFbDialogs().length > 0) return false;
     for (const root of visiblePosts) {
-      if (!root.isConnected) continue;
+      if (!root.isConnected || isHiddenOrInert(root)) continue;
       if (root.closest('[role="dialog"]')) continue;
       if (!isAdRoot(root)) continue;
       const last = adAttempts.get(root);

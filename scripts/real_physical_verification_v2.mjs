@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * FB Feed Enhancer v2.0.0 真實 Chrome Headless CDP 無 Mock 實體驗收腳本
+ * FB Feed Enhancer v2.2.2 真實 Chrome Headless CDP 無 Mock 實體驗收腳本
  * 零外部依賴（純 Node.js v24 + 真實 Chrome 瀏覽器引擎）
  */
 import assert from "node:assert/strict";
@@ -569,12 +569,82 @@ async function main() {
     assert.equal(w12Result.hasPipBtn, true, "應存在 🖼️ 一鍵子母畫面按鈕");
     console.log(`  [PASS] W12 版面數值標籤 (${w12Result.colLabel}/${w12Result.heightLabel}/${w12Result.volLabel})、倍速快捷鍵 (${w12Result.speedLabelInit}->${w12Result.speedLabelAfter})、PiP 與 Reels 播完暫停`);
 
+    // --- W13: /photo/ 相片頁背景動態牆隔離防無限誤點回歸測試 ---
+    const w13Result = await cdp.eval(`(async () => {
+      // 隱藏舊的模擬燈箱，模擬從首頁動態牆點開 /photo/?fbid=...（背景仍保留多貼文動態牆 DOM）
+      const oldDlg = document.getElementById("post-comment-dialog");
+      if (oldDlg) oldDlg.style.display = "none";
+
+      window.__bgClicks = 0;
+      window.__fgPhotoClicks = 0;
+
+      // 在背景動態牆 #post-normal 內放入會觸發 AUTO_EXPAND / MORE_COMMENT / SEE_MORE(包於連結內) 的元素
+      const bgPost = document.getElementById("post-normal");
+      const bgAutoWrap = document.createElement("div");
+      bgAutoWrap.className = "x1qjc9v5 x71s49j x1a2a7pz";
+      const bgAutoBtn = document.createElement("div");
+      bgAutoBtn.className = "xeuugli xbelrpt";
+      bgAutoBtn.textContent = "背景貼文留言入口";
+      bgAutoBtn.addEventListener("click", () => { window.__bgClicks++; });
+      bgAutoWrap.appendChild(bgAutoBtn);
+
+      const bgMoreBtn = document.createElement("div");
+      bgMoreBtn.setAttribute("role", "button");
+      bgMoreBtn.className = "x1i10hfl x6s0dn4 xi81zsa x1q0g3np x1iyjqo2 xs83m0k x1icxu4v";
+      bgMoreBtn.textContent = "查看更多留言";
+      bgMoreBtn.addEventListener("click", () => { window.__bgClicks++; });
+
+      const bgLinkWrap = document.createElement("a");
+      bgLinkWrap.href = "https://www.facebook.com/example.user/posts/pfbid00000000000000000";
+      const bgSeeMoreInLink = document.createElement("div");
+      bgSeeMoreInLink.setAttribute("role", "button");
+      bgSeeMoreInLink.className = "x1i10hfl xzsf02u x1sur9pj";
+      bgSeeMoreInLink.textContent = "查看更多";
+      bgSeeMoreInLink.addEventListener("click", (e) => { e.preventDefault(); window.__bgClicks++; });
+      bgLinkWrap.appendChild(bgSeeMoreInLink);
+
+      bgPost.appendChild(bgAutoWrap);
+      bgPost.appendChild(bgMoreBtn);
+      bgPost.appendChild(bgLinkWrap);
+
+      // 建立前景獨立相片檢視層（不在動態牆內、非 aria-hidden，置於視口內模擬相片檢視器）
+      const fgPhoto = document.createElement("div");
+      fgPhoto.id = "photo-viewer-stage";
+      fgPhoto.style.cssText = "position:fixed;top:20px;left:20px;width:300px;height:120px;background:#fff;z-index:9999;";
+      const fgMoreBtn = document.createElement("div");
+      fgMoreBtn.setAttribute("role", "button");
+      fgMoreBtn.className = "x1i10hfl x6s0dn4 xi81zsa x1q0g3np x1iyjqo2 xs83m0k x1icxu4v";
+      fgMoreBtn.textContent = "查看更多留言";
+      fgMoreBtn.addEventListener("click", () => { window.__fgPhotoClicks++; });
+      fgPhoto.appendChild(fgMoreBtn);
+      document.body.appendChild(fgPhoto);
+
+      // 開啟 💬 安全版自動展開留言 與 📖 自動展開貼文
+      document.getElementById("ffe-cat-feed").click();
+      const feedDrawerBtns = Array.from(document.querySelectorAll("#ffe-drawer-feed button"));
+      const btnOtherExpand = feedDrawerBtns.find((b) => (b.textContent || "").trim() === "💬");
+      const btnPostExpand = feedDrawerBtns.find((b) => (b.textContent || "").trim() === "📖");
+      btnOtherExpand.click();
+      btnPostExpand.click();
+
+      // SPA 導航至 /photo/?fbid=...
+      history.pushState({}, "", "/photo/?fbid=100000000000000&set=a.200000000000000");
+      await new Promise((r) => setTimeout(r, 250));
+      fgPhoto.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 250));
+
+      return { bgClicks: window.__bgClicks, fgPhotoClicks: window.__fgPhotoClicks };
+    })()`);
+    assert.equal(w13Result.bgClicks, 0, `/photo/ 頁背景動態牆元素絕不可被誤點，實測誤點 ${w13Result.bgClicks} 次`);
+    assert.ok(w13Result.fgPhotoClicks >= 1, `/photo/ 頁前景相片層之「查看更多留言」應可正常展開，實測 ${w13Result.fgPhotoClicks} 次`);
+    console.log(`  [PASS] W13 /photo/ 相片頁背景動態牆防誤點隔離 (bgClicks=${w13Result.bgClicks}, fgPhotoClicks=${w13Result.fgPhotoClicks})`);
+
     // --- 瀏覽器 Console 零 Uncaught Error 審計 ---
     assert.equal(cdp.exceptions.length, 0, `瀏覽器出現 Uncaught Exception: ${cdp.exceptions.join("; ")}`);
     console.log("  [PASS] 瀏覽器 DevTools Runtime 零 Uncaught Exception");
 
     console.log("\n=== [3] 資源守恆審計 ===");
-    console.log("  [PASS] 所有垂直切片 (W1-W7) 100% 轉綠，準備終止 Chrome 並清理暫存目錄...");
+    console.log("  [PASS] 所有垂直切片 (W2-W13) 100% 轉綠，準備終止 Chrome 並清理暫存目錄...");
   } finally {
     if (cdp) cdp.close();
     server.close();

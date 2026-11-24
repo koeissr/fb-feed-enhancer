@@ -63,7 +63,7 @@ An all-in-one desktop **Facebook Cleaner & Feed Enhancer** userscript (`www.face
 ### Key Features
 
 - **⚙️ Bilingual Advanced Settings Modal**: Clean light-toned settings panel (auto-switches between English and Traditional Chinese) consolidating all cleaners, filters, comment sort preference, keyword blacklist, and one-click reset.
-- **🗂️ Multi-Column Layout + Virtualization Scroll Fix**: Customizable column count, max card height (`vh`), and width controls without clipping Facebook virtualized spacers.
+- **🗂️ Multi-Column Layout + Virtualization Scroll Fix**: Customizable column count and max card height (`vh`) without clipping Facebook virtualized spacers.
 - **🔒 Prevent Auto-Refresh on Tab Switch**: Blocks Facebook's `visibilitychange` home feed reload without interfering with manual refresh (F5).
 - **📋 All / Newest Comments + Hotkeys**: Automatically switches comment sorting to **All comments** or **Newest** inside post dialogs and single-post pages; press `Insert` to trigger preferred sort or `Ctrl+Insert` to toggle between All and Newest.
 - **💬 Safe Comment Auto-Expand**: Expands comments, collapsed replies, and "View more comments" strictly inside `[role="dialog"]` or single-post pages.

@@ -1,17 +1,25 @@
 # Changelog
 
+## v2.2.2 (2026-11-24)
+
+### Fixed
+- **徹底修復瀏覽 `/photo/` 相片頁或貼文燈箱時，背景動態牆貼文遭無限誤點彈出燈箱的 BUG**：
+  - 於 [src/core/dom_utils.js](src/core/dom_utils.js) 新增 `isHiddenOrInert()`、`isNavigationLinkElement()`、`getActiveFbDialogs()` 與 `isBackgroundFeedElement()` 共用防線。
+  - 強化 [src/modules/feed_engine.js](src/modules/feed_engine.js) 之 `isSinglePostOrDialog()`：開啟 FB 燈箱時嚴格封鎖燈箱外部，於 `/photo/` 或 `/posts/` 路徑下全面排除背景 `[aria-hidden="true"]` 與多貼文動態牆（`[role="feed"]` / `[aria-posinset]`），並於 `expandComments()`、`expandReplies()`、`expandMoreComments()`、`isPostSeeMore()` 補齊外層連結 `a[href]` 防誤點門禁。
+  - 強化 [src/modules/comments_control.js](src/modules/comments_control.js) 之 `switchToAllComments()`，避免退回全頁掃描時誤觸背景動態牆，並於 `/photo/` 改以含 `search` 參數之完整路徑獨立記錄。
+
 ## v2.2.1 (2026-11-22)
 
 ### Fixed
-- **修復帶查詢參數之 Facebook 首頁（如 `/?locale=zh_TW`、`/?sk=...`、`/?ref=...`）無法啟動插件的問題**：將 [src/core/config.js](file:///d:/Projects/fb-feed-enhancer/src/core/config.js) 之首頁路徑白名單由 `/^\/$/` 放寬為 `/^\/(?:\?.*)?$/`，確保所有首頁變體網址皆自動生效且關閉貼文燈箱後不再退回預設單欄。
+- **修復帶查詢參數之 Facebook 首頁（如 `/?locale=zh_TW`、`/?sk=...`、`/?ref=...`）無法啟動插件的問題**：將 [src/core/config.js](src/core/config.js) 之首頁路徑白名單由 `/^\/$/` 放寬為 `/^\/(?:\?.*)?$/`，確保所有首頁變體網址皆自動生效且關閉貼文燈箱後不再退回預設單欄。
 
 ## v2.2.0 (2026-11-22)
 
 ### Added
-- **4 欄防回捲變白雙重強化（[scroll_recovery.js](file:///d:/Projects/fb-feed-enhancer/src/modules/scroll_recovery.js)）**：
+- **4 欄防回捲變白雙重強化（[scroll_recovery.js](src/modules/scroll_recovery.js)）**：
   - 於 `document-start` 擴大 Facebook 虛擬捲動 `IntersectionObserver` 上下緩衝區至 `2200px`（`⚙️` 設定彈窗可開關，預設開啟），大幅延緩 4 欄舊貼文被卸載。
   - 向上回捲偵測到視口內有空白佔位殼時自動節流喚醒重繪。
-- **🎬 影片媒體抽屜全套增強（[media_controls.js](file:///d:/Projects/fb-feed-enhancer/src/modules/media_controls.js)）**：
+- **🎬 影片媒體抽屜全套增強（[media_controls.js](src/modules/media_controls.js)）**：
   - `⏩` 統一倍速控制（`0.5x ~ 3.0x`，步進 `0.25x`，跨 Reels／Watch／Feed 自動記憶套用）。
   - `🖼️` 一鍵子母畫面（Picture-in-Picture）。
   - `⌨️` 影片快捷鍵：`←`/`→` 快退／快進 5 秒、`[`/`]` 即時加減速（自動避開輸入框）。
@@ -28,7 +36,7 @@
 - **動態牆影片懸浮播放（Feed Hover-to-Play）**：於 `🎬 影片媒體` 抽屜（`▶️`）與 `⚙️` 設定彈窗新增開關；開啟後 Feed 動態牆影片預設不自動播放，滑鼠移入即播放、移開即暫停（自動排除 `/reel/`、`/watch/` 獨立影片頁與貼文燈箱，並尊重手動點擊播放）。
 
 ### Fixed
-- **徹底修復未登入訪客 Reels 登入牆殘留白霧與透明遮罩攔截點擊問題**：[login_wall.js](file:///d:/Projects/fb-feed-enhancer/src/modules/login_wall.js) 向上追溯隱藏登入牆專屬之全螢幕白霧與 `position: static` 透明 Portal 外殼，並解除底層 `aria-hidden` / `inert` 鎖定，確保 Reels 原生暫停與靜音按鈕 100% 可點擊。
+- **徹底修復未登入訪客 Reels 登入牆殘留白霧與透明遮罩攔截點擊問題**：[login_wall.js](src/modules/login_wall.js) 向上追溯隱藏登入牆專屬之全螢幕白霧與 `position: static` 透明 Portal 外殼，並解除底層 `aria-hidden` / `inert` 鎖定，確保 Reels 原生暫停與靜音按鈕 100% 可點擊。
 - **修復 🔊 音量控制與 FB 原生播放器靜音狀態脫勾及卡死問題**：移除直接覆寫 `video.muted = false` 的不安全邏輯，改為背景安全套用 `v.volume` 音量大小，點擊工具列 `🔊` 時同步聯動點擊 FB 原生靜音／取消靜音按鈕，於登入與未登入 Reels 皆流暢播放不卡死。
 
 ## v2.0.2 (2026-11-22)
@@ -48,7 +56,7 @@
 ## v2.0.0 (2026-11-22)
 
 ### Added
-- **模組化源碼 + 產出單檔架構**：將單體腳本拆解為 14 個模組（`src/core/*`、`src/modules/*`、`src/ui/*`、`src/main.js`），新增零外部依賴建置腳本 [build.mjs](file:///d:/Projects/fb-feed-enhancer/scripts/build.mjs) 產出根目錄 `fb-feed-enhancer.user.js`（維持 GitHub Raw 一鍵安裝）。
+- **模組化源碼 + 產出單檔架構**：將單體腳本拆解為 14 個模組（`src/core/*`、`src/modules/*`、`src/ui/*`、`src/main.js`），新增零外部依賴建置腳本 [build.mjs](scripts/build.mjs) 產出根目錄 `fb-feed-enhancer.user.js`（維持 GitHub Raw 一鍵安裝）。
 - **⚙️ 進階設定彈窗**：於工具列頂端新增 `⚙️` 設定入口，以柔和淺色系彈窗統一管理所有進階開關、留言排序偏好、關鍵字黑名單與一鍵重置，全面汰除舊暗黑背景與純黑按鈕。
 - **Phase 1 整合功能**：
   - Reels 播放時自動隱藏標題遮罩（暫停或移入滑鼠時恢復）。
@@ -59,7 +67,7 @@
 - **Phase 2 整合功能**：
   - 擴充內容淨化：非破壞式（`data-ffe-filtered="1"`）隱藏 Meta AI 卡片與「你可能認識的人」區塊。
   - 自訂關鍵字黑名單：支援多組關鍵字即時套用隱藏與重置還原，不破壞 FB 虛擬捲動結構。
-- 新增真實 Chrome Headless CDP 無 Mock 實體驗收腳本 [real_physical_verification_v2.mjs](file:///d:/Projects/fb-feed-enhancer/scripts/real_physical_verification_v2.mjs)。
+- 新增真實 Chrome Headless CDP 無 Mock 實體驗收腳本 [real_physical_verification_v2.mjs](scripts/real_physical_verification_v2.mjs)。
 
 ### Changed
 - 左側浮動工具列改採柔白半透明與鼠尾草綠啟用配色。
